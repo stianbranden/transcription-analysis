@@ -14,7 +14,7 @@ const MetaSchema = new mongoose.Schema({
         type: String,
         required: true
     }
-})
+}, {_id: false})
 
 const TextSchema = new mongoose.Schema({
     text: {
@@ -25,7 +25,7 @@ const TextSchema = new mongoose.Schema({
         type: String,
         required: true
     }
-})
+}, {_id: false})
 
 const ContactReasonSchema = new mongoose.Schema({
     level1: {
@@ -40,7 +40,7 @@ const ContactReasonSchema = new mongoose.Schema({
         type: String,
         required: true
     }
-})
+}, {_id: false})
 
 const TranscriptSchema = new mongoose.Schema({
     meta: {type: MetaSchema, required: true},

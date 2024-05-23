@@ -4,7 +4,7 @@ const {C1BASEURL} = process.env
 
 const contactQuery = {
     method: 'GET',
-    url:  C1BASEURL + 'recording/contact?beginDate=2024-04-01&endDate=2024-04-30&limit=100&hasTranscription&expand=metadata'
+    url:  C1BASEURL + 'recording/contact?beginDate=2024-05-06&endDate=2024-05-06&limit=1000&hasTranscription&expand=metadata'
 }
 
 function getContacts(sessionId){

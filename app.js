@@ -7,7 +7,7 @@ const {connect, disconnect} = require('./controllers/connectDB')
 const { getDefaultContactData } = require('./controllers/getContacts')
 const authCalabrio = require('./controllers/authCalabrio') 
 const { getTranscriptForContact } = require('./controllers/getTranscript')
-const {summary, traverseTranscripts} = require('./controllers/getSummary')
+const {createSummaries} = require('./controllers/getSummary')
 const Transcript = require('./models/Transcript')
 
 async function run(){
@@ -23,14 +23,16 @@ async function run(){
             await new Transcript({meta, transcript}).save()
             // await file.save()
         }
-        disconnect(true)
+        await createSummaries()
+        await disconnect(true)
+        resolve('done')
 
     } catch (error) {
         logErr(error)
+        reject(error)
     }
 }
 
-// run()
-traverseTranscripts()
+run()
 // fs.writeFileSync('./output/data.json', JSON.stringify(outputData), 'utf8')
 // log(outputData)

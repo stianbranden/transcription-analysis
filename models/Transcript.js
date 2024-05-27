@@ -24,7 +24,8 @@ const TextSchema = new mongoose.Schema({
     channel: {
         type: String,
         required: true
-    }
+    },
+    hits: [String]
 }, {_id: false})
 
 const ContactReasonSchema = new mongoose.Schema({
@@ -44,6 +45,7 @@ const ContactReasonSchema = new mongoose.Schema({
 
 const TranscriptSchema = new mongoose.Schema({
     meta: {type: MetaSchema, required: true},
+    date: {type: String},
     transcript: [TextSchema],
     summary: {
         type: String,

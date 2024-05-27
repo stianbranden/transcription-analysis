@@ -2,20 +2,45 @@ const axios = require('axios')
 
 const {C1BASEURL} = process.env
 
+const limit = 1000
+
 const contactQuery = {
     method: 'GET',
-    url:  C1BASEURL + 'recording/contact?beginDate=2024-05-06&endDate=2024-05-06&limit=1000&hasTranscription&expand=metadata'
+    url:  C1BASEURL + 'recording/contact?limit=' + limit + '&hasTranscription&expand=metadata'
 }
 
-function getContacts(sessionId){
+const statQuery = {
+    method: 'GET',
+    url:  C1BASEURL + 'recording/contact?hasTranscription&searchStats=true'
+}
+
+//beginDate=2024-05-02&endDate=2024-05-02&
+function getContacts(sessionId, date="2024-05-02"){
     return new Promise(async(resolve, reject)=>{
         try {
-            const contacts = (await axios({
-                ...contactQuery,
-                headers: {
-                    cookie: "hazelcast.sessionId=" + sessionId
+            // const min = 0
+            // let  max = 999
+            const query = {...statQuery, headers: {
+                cookie: "hazelcast.sessionId=" + sessionId
+            }}
+            query.url = query.url + '&beginDate=' + date + '&endDate=' + date
+            const count = (await axios(query)).data.count
+            console.log('Number to fetch: ' + count);
+            let contacts = []
+            for (let min = 0; min < count; min += limit) {
+                const max = min + limit - 1
+                console.log({min, max});
+                const cQuery = {
+                    ...contactQuery,
+                    headers: {
+                        cookie: "hazelcast.sessionId=" + sessionId,
+                        Range: "items="+ min + "-" + max
+                    }
                 }
-            })).data
+                cQuery.url = cQuery.url + '&beginDate=' + date + '&endDate=' + date
+                const newContacts = (await axios(cQuery)).data
+                contacts = [...contacts, ...newContacts]
+            }
             resolve(contacts)
         } catch (error) {
             reject(error)

@@ -3,6 +3,8 @@ const color = require('colors/safe');
 const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY} = process.env
 const Transcript = require('../models/Transcript')
 const db = require('./connectDB')
+const Progress = require('progress');
+const { logErr } = require("./logger");
 // console.log({AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY})
 
 
@@ -20,12 +22,21 @@ function createSummaries(){
       // await summary(_id)
 
       const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
+      const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
       for ( let i = 0; i < transcripts.length; i++){
-        await summary(transcripts[i])
+        try {
+          await summary(transcripts[i])
+        } catch (error) {
+          logErr(transcripts[i] + ' Failed')
+          logErr(JSON.stringify(error))
+        }
+
+        aiBar.tick()
       }
-      
+      resolve('ok')
       // await db.disconnect() 
     } catch (error) {
+      logErr(JSON.stringify(error))
       reject(error)
     }
     

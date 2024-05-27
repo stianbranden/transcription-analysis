@@ -2,7 +2,7 @@ module.exports = function(contact){
     const languages = {
         'SV': 'Swedish',
         'NO': 'Norwegian',
-        'DK': 'Danish',
+        'DA': 'Danish',
         'FI': 'Finnish'
     }
     return {

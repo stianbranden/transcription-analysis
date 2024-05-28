@@ -10,17 +10,18 @@ const { getTranscriptForContact } = require('./controllers/getTranscript')
 const {createSummaries} = require('./controllers/getSummary')
 const Transcript = require('./models/Transcript')
 const Progress = require('progress')
-const moment = require('moment')
-
+// const moment = require('moment')
+const analyseContactReason = require('./controllers/analyseContactReason')
+const {argv} = require('yargs')
 // function 
-
-async function run(fetchContacts=true, createAISummary=true){
+// console.log(argv);
+async function run(){
     try {
         await connect(true)
-        if (fetchContacts){
+        if (argv.fetchContacts){
             logStd('Authenticating with Calabrio')
             const {sessionId} = (await authCalabrio()).data
-            const date = '2024-05-02'//moment().format('YYYY-MM-DD')
+            const date = argv.date || '2024-05-02'//moment().format('YYYY-MM-DD')
             logStd('Fetching transcripts for ' + date)
             const contacts = await getDefaultContactData(sessionId, date)
             const contactProgress = new Progress('Transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: contacts.length, renderThrottle: 1000})
@@ -33,20 +34,23 @@ async function run(fetchContacts=true, createAISummary=true){
                 contactProgress.tick()
             }
         }
-        if (createAISummary){
+        if (argv.createAISummary){
             logStd('Creating summaries of contacts')
             await createSummaries()
+        }
+        if (argv.analyse){
+            logStd('Analyzing contact reasons')
+            await analyseContactReason()
+
         }
         await disconnect(true)
 
     } catch (error) {
         logErr(error)
+        disconnect(true)
     }
 }
 
-run(
-    false, 
-    true
-)
+run()
 // fs.writeFileSync('./output/data.json', JSON.stringify(outputData), 'utf8')
 // log(outputData)

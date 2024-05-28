@@ -1,6 +1,6 @@
 const { OpenAIClient, AzureKeyCredential } = require("@azure/openai");
 const color = require('colors/safe');
-const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY} = process.env
+const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, GPT35_MODEL_NAME} = process.env
 const Transcript = require('../models/Transcript')
 const db = require('./connectDB')
 const Progress = require('progress');
@@ -55,7 +55,6 @@ function summary(_id) {
         try {
             // await db.connect()
             const client = new OpenAIClient(AZURE_OPENAI_ENDPOINT, new AzureKeyCredential(AZURE_OPENAI_API_KEY));
-            const deploymentId = "gpt35turbo-1106";
             const transcript = await Transcript.findById(_id, "meta.language transcript.text transcript.channel").lean()
             // for ( let i = 0; i < transcript.transcript.length; i++ ){
             //     const text = transcript.transcript[i]
@@ -67,7 +66,7 @@ function summary(_id) {
             // console.log()
             // console.log('Azure OpenAI, please create a summary of this conversation and also a log the contact reason :D');
             // console.log()
-            const result = await client.getChatCompletions(deploymentId, messages);
+            const result = await client.getChatCompletions(GPT35_MODEL_NAME, messages);
             // await sleep(200)
             
             // console.log(color.red('Summary: '))

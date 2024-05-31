@@ -39,9 +39,11 @@ const ContactReasonSchema = new mongoose.Schema({
     },
     level3: {
         type: String,
-        required: true
+        required: true,
+        default: 'N/A'
     }
 }, {_id: false})
+
 
 const TranscriptSchema = new mongoose.Schema({
     meta: {type: MetaSchema, required: true},
@@ -57,6 +59,13 @@ const TranscriptSchema = new mongoose.Schema({
         type: Boolean,
         required: true,
         default: false
+    },
+    hasError: {
+        type: Boolean,
+        default: false
+    },
+    errorMessage: {
+        type: String
     }
 }, {timestamps: true})
 

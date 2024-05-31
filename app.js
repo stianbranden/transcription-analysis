@@ -18,10 +18,20 @@ const {argv} = require('yargs')
 async function run(){
     try {
         await connect(true)
-        if (argv.fetchContacts){
+        if (argv.h || argv.documentation){
+            // logStd()
+            logTab([
+                {name: 'Help', command: '--h or --documentation', description: 'Prints available commands'},
+                {name: 'Fetch contacts', command: '--fc or --fetchContacts', description: 'Fetches contacts and transcripts from Calabrio, use together with date command'},
+                {name: 'Date', command: '--d or --date', description: 'Used together with fetchContacts, syntax --date=2024-05-02. Defaults to 2024-05-02'},
+                {name: 'Create AI Summary', command: '--cs or --createAISummary', description: 'Creates AI summary where hasSummary=false'},
+                {name: 'Analyse contact reasons', command: '--ac or --analyse', description: 'Generates a suggestions for contact reasons using 1000 random summaries'}
+            ], 'Commands available:')
+        }
+        if (argv.fetchContacts || argv.fc){
             logStd('Authenticating with Calabrio')
             const {sessionId} = (await authCalabrio()).data
-            const date = argv.date || '2024-05-02'//moment().format('YYYY-MM-DD')
+            const date = argv.date || argv.d || '2024-05-02'//moment().format('YYYY-MM-DD')
             logStd('Fetching transcripts for ' + date)
             const contacts = await getDefaultContactData(sessionId, date)
             const contactProgress = new Progress('Transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: contacts.length, renderThrottle: 1000})
@@ -34,11 +44,11 @@ async function run(){
                 contactProgress.tick()
             }
         }
-        if (argv.createAISummary){
+        if (argv.createAISummary || argv.cs){
             logStd('Creating summaries of contacts')
             await createSummaries()
         }
-        if (argv.analyse){
+        if (argv.analyse || argv.ac){
             logStd('Analyzing contact reasons')
             await analyseContactReason()
 

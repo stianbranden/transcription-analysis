@@ -31,7 +31,8 @@ function createSummaries(){
           await summary(transcripts[i])
         } catch (error) {
           logErr(transcripts[i] + ' Failed')
-          logErr(JSON.stringify(error))
+          status.failed++
+          logErr(error.message)
         }
         status.success++
         aiBar.tick()
@@ -49,10 +50,25 @@ function createSummaries(){
   })
 }
 
+const json_summary_template = {
+  summary: "string",
+  sentiment: "Positive, negative or neutral"
+}
+
+const json_contact_reason_template = {
+  contact_reason: {
+    level1: "string",
+    level2: "string", 
+    confidence: "Number from 0 to 100"
+  }
+}
+
 function summary(_id) {
   const messages = [
     // { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. In addition, using a 3 level granularity, you categorize the contact reason of the conversation. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\", \"level3\": \"example level 3\"}}" },
-    { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. In addition, categorize the contact reason of the conversation using the set list of contact reasons. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\"}}. The list of contact reasons are: " + JSON.stringify(contact_reasons) },
+    { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. You also analyse the customer sentiment. Return the answer as json object with the format: " + JSON.stringify(json_summary_template)}
+    
+    //In addition, categorize the contact reason of the conversation using the set list of contact reasons. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\"}}. The list of contact reasons are: " + JSON.stringify(contact_reasons) },
   //   { role: "user", content: "Does Azure OpenAI support customer managed keys?" },
   //   { role: "assistant", content: "Yes, customer managed keys are supported by Azure OpenAI" },
   //   { role: "user", content: "What are Azure AI services?" },
@@ -76,15 +92,19 @@ function summary(_id) {
               // console.log('Azure OpenAI, please create a summary of this conversation and also a log the contact reason :D');
               // console.log()
               const result = await client.getChatCompletions(GPT35_MODEL_NAME, messages);
+              await createOrUpdateTokenUsage(result)
               // await sleep(200)
               
               // console.log(color.red('Summary: '))
               // for (const choice of result.choices) {
                 // console.log(result.choices[0].message.content);
               const data = JSON.parse(result.choices[0].message.content)
-                // console.log(data.summary);
-                
-                // await sleep(1000)
+              // console.log(data);
+              const messages2 = [
+                {role: 'system', content: "Based on this summary of a conversation of a electronics reatil contact center, categorize the contact reason of the conversation using the set list of contact reasons. Return contact reason as a json object with the format: " + JSON.stringify(json_contact_reason_template) + ". The list of contact reasons are: " + JSON.stringify(contact_reasons) },
+                {role: 'user', content: data.summary}
+              ]
+              // await sleep(1000)
                 // console.log()
                 // console.log(color.red('Contact reason: '))
                 // console.log('Level 1: ' + data["contact_reason"].level1);
@@ -92,10 +112,15 @@ function summary(_id) {
                 // console.log('Level 3: ' + data["contact_reason"].level3);
                 // console.log()
                 // console.log()
-                await createOrUpdateTokenUsage(result)
+                const result2 = await client.getChatCompletions(GPT35_MODEL_NAME, messages2, {response_format: "json_object", temperature: 0.3})
+                await createOrUpdateTokenUsage(result2)
+                const parsed = JSON.parse(result2.choices[0].message.content)
+                const contact_reason = parsed || result2.choices[0].message.content
+                // console.log(contact_reason);
                 await Transcript.findByIdAndUpdate(_id, {
                   summary: data.summary,
-                  contactReason: data["contact_reason"],
+                  contactReason: contact_reason["contact_reason"],
+                  sentiment: data.sentiment,
                   hasSummary: true
                 })
               

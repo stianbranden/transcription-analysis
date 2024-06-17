@@ -6,7 +6,7 @@
 function convertTranscript(texts){
     const transcript = []
     texts.forEach(a=>{
-        const {text, channel, hits} = a
+        const {text, channel, hits, start, end} = a
         const h = []
         hits.forEach(hit=>{
             h.push(hit.category)
@@ -14,6 +14,8 @@ function convertTranscript(texts){
 
         transcript.push({
             text,
+            start, 
+            end, 
             channel: channel === 1 ? 'Customer Service' : 'Customer',
             hits: h
         })

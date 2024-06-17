@@ -13,6 +13,7 @@ const Progress = require('progress')
 // const moment = require('moment')
 const analyseContactReason = require('./controllers/analyseContactReason')
 const {argv} = require('yargs')
+const { analyseCallTranscriptions } = require('./controllers/analyseCall')
 // function 
 // console.log(argv);
 async function run(){
@@ -25,7 +26,8 @@ async function run(){
                 {name: 'Fetch contacts', command: '--fc or --fetchContacts', description: 'Fetches contacts and transcripts from Calabrio, use together with date command'},
                 {name: 'Date', command: '--d or --date', description: 'Used together with fetchContacts, syntax --date=2024-05-02. Defaults to 2024-05-02'},
                 {name: 'Create AI Summary', command: '--cs or --createAISummary', description: 'Creates AI summary where hasSummary=false'},
-                {name: 'Analyse contact reasons', command: '--ac or --analyse', description: 'Generates a suggestions for contact reasons using 1000 random summaries'}
+                {name: 'Analyse contact reasons', command: '--ac or --analyse', description: 'Generates a suggestions for contact reasons using 1000 random summaries'},
+                {name: 'Analyse call transcriptions for event', command: '--ae or --analyseEvents', description: 'Analyses calls for events'}
             ], 'Commands available:')
         }
         if (argv.fetchContacts || argv.fc){
@@ -51,8 +53,12 @@ async function run(){
         if (argv.analyse || argv.ac){
             logStd('Analyzing contact reasons')
             await analyseContactReason()
-
         }
+        if ( argv.analyseEvents || argv.ae ){
+            logStd('Analyzing call transcriptions events')
+            await analyseCallTranscriptions()
+        }
+
         await disconnect(true)
 
     } catch (error) {

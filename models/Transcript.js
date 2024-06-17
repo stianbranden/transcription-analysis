@@ -25,22 +25,73 @@ const TextSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    start: {
+        type: Number
+    },
+    end: {
+        type: Number
+    },
     hits: [String]
 }, {_id: false})
 
 const ContactReasonSchema = new mongoose.Schema({
     level1: {
         type: String,
+        default: 'N/A',
         reuired: true
     },
     level2: {
         type: String,
+        default: 'N/A',
         required: true
     },
     level3: {
         type: String,
         required: true,
         default: 'N/A'
+    }, confidence: {
+        type: Number
+    }
+}, {_id: false})
+
+const SilenceEventSchema = new mongoose.Schema({
+    start: Number,
+    end: Number,
+    length: Number
+}, {_id: false})
+
+const EventSchema = new mongoose.Schema({
+    silenceEvents: [SilenceEventSchema],
+    totalSilence: {
+        type: Number,
+        default: 0
+    },
+    numOfSilenceEvents: {
+        type: Number
+    },
+    overtalkEvents: [SilenceEventSchema],
+    totalOvertalk: {
+        type: Number,
+        default: 0
+    },
+    numOfOvertalkEvents: {
+        type: Number
+    },
+    lineCount: {
+        customer: {
+            type: Number
+        },
+        agent: {
+            type: Number
+        }
+    },
+    wordCount: {
+        customer: {
+            type: Number
+        },
+        agent: {
+            type: Number
+        }
     }
 }, {_id: false})
 
@@ -54,10 +105,18 @@ const TranscriptSchema = new mongoose.Schema({
         default: 'TBC',
         required: true
     },
+    sentiment: {
+        type: String,
+        default: "Unknown"
+    },
     contactReason: ContactReasonSchema,
     hasSummary: {
         type: Boolean,
         required: true,
+        default: false
+    },
+    hasAnalysis: {
+        type: Boolean,
         default: false
     },
     hasError: {
@@ -66,7 +125,8 @@ const TranscriptSchema = new mongoose.Schema({
     },
     errorMessage: {
         type: String
-    }
+    },
+    events: EventSchema
 }, {timestamps: true})
 
 module.exports = mongoose.model('Transcript', TranscriptSchema)

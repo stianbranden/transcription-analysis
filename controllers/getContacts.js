@@ -9,6 +9,8 @@ const contactQuery = {
     url:  C1BASEURL + 'recording/contact?limit=' + limit + '&hasTranscription&expand=metadata'
 }
 
+
+
 const statQuery = {
     method: 'GET',
     url:  C1BASEURL + 'recording/contact?hasTranscription&searchStats=true'

@@ -1,10 +1,10 @@
 const { OpenAIClient, AzureKeyCredential } = require("@azure/openai");
 const color = require('colors/safe');
-const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, GPT35_MODEL_NAME} = process.env
+const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, GPT35_MODEL_NAME, GPT4_MODEL_NAME} = process.env
 const Transcript = require('../models/Transcript')
 const db = require('./connectDB')
 const Progress = require('progress');
-const { logErr, logTab } = require("./logger");
+const { logErr, logTab, logStd } = require("./logger");
 const { createOrUpdateTokenUsage } = require("./logTokensUsed");
 const contact_reasons = require('../training_data/contact_reasons')
 // console.log({AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY})
@@ -27,12 +27,35 @@ function createSummaries(){
       const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
       const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
       for ( let i = 0; i < transcripts.length; i++){
+        let tries = 0
         try {
           await summary(transcripts[i])
         } catch (error) {
+          tries ++
           logErr(transcripts[i] + ' Failed')
-          status.failed++
-          logErr(error.message)
+          if (error.message.includes("Unexpected token")){
+            logStd('Retrying')
+            try {
+              await summary(transcripts[i])
+            } catch (error) {
+              status.failed++
+              logErr(error.message)
+            }
+          }
+          else if ( error.message.includes("This model's maximum context length") ){
+            logStd('Retrying with bigger model')
+            try {
+              await summary(transcripts[i], true)
+            } catch (error) {
+              status.failed++
+              logErr(error.message)
+            }
+          }
+          else {
+            status.failed++
+            logErr(error.message)
+          }
+
         }
         status.success++
         aiBar.tick()
@@ -63,7 +86,7 @@ const json_contact_reason_template = {
   }
 }
 
-function summary(_id) {
+function summary(_id, largeModel = false) {
   const messages = [
     // { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. In addition, using a 3 level granularity, you categorize the contact reason of the conversation. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\", \"level3\": \"example level 3\"}}" },
     { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. You also analyse the customer sentiment. Return the answer as json object with the format: " + JSON.stringify(json_summary_template)}
@@ -91,7 +114,8 @@ function summary(_id) {
               // console.log()
               // console.log('Azure OpenAI, please create a summary of this conversation and also a log the contact reason :D');
               // console.log()
-              const result = await client.getChatCompletions(GPT35_MODEL_NAME, messages);
+              const model = largeModel ? GPT4_MODEL_NAME : GPT35_MODEL_NAME
+              const result = await client.getChatCompletions(model, messages);
               await createOrUpdateTokenUsage(result)
               // await sleep(200)
               

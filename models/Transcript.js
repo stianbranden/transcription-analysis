@@ -13,6 +13,9 @@ const MetaSchema = new mongoose.Schema({
     contactId: {
         type: String,
         required: true
+    },
+    callDuration: {
+        type: Number
     }
 }, {_id: false})
 
@@ -92,6 +95,37 @@ const EventSchema = new mongoose.Schema({
         agent: {
             type: Number
         }
+    },
+    talkLength: {
+        customer: {
+            type: Number
+        },
+        agent: {
+            type: Number
+        }
+    }
+}, {_id: false})
+
+const EnergySchema = new mongoose.Schema({
+    numChannels: {
+        type: Number,
+        default: 2
+    },
+    duration: {
+        type: Number,
+        required: true
+    },
+    minmax: {
+        type: Number,
+        required: true
+    },
+    channel_0: [Number],
+    channel_1: [Number],
+    channel_0_length: {
+        type: Number
+    },
+    channel_1_length: {
+        type: Number
     }
 }, {_id: false})
 
@@ -126,7 +160,8 @@ const TranscriptSchema = new mongoose.Schema({
     errorMessage: {
         type: String
     },
-    events: EventSchema
+    events: EventSchema,
+    mediaEnergy: EnergySchema
 }, {timestamps: true})
 
 module.exports = mongoose.model('Transcript', TranscriptSchema)

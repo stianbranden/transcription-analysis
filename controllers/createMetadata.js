@@ -9,5 +9,6 @@ module.exports = function(contact){
         language: languages[contact.metadata.QueueLanguage.value],
         recordingId: contact.id,
         contactId: contact.assocCallId.replaceAll('-', ''),
+        callDuration: contact.callDuration
     }
 }

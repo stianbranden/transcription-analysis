@@ -8,7 +8,7 @@ const overtalkThreshold = 500
 function analyseCallTranscriptions(){
     return new Promise( async (resolve, reject)=>{
         try {
-            const transcripts = await Transcript.find({hasAnalysis: true})
+            const transcripts = await Transcript.find({hasAnalysis: false})
             const analysisBar = new Progress('Analysis [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
             for ( let i= 0; i < transcripts.length; i++){
                 const transcript = transcripts[i]
@@ -44,6 +44,10 @@ function analyseCall(transcription){
         wordCount: {
             customer: 0,
             agent: 0
+        },
+        talkLength: {
+            customer: 0,
+            agent: 0
         }
     }
     let maxTime = 0
@@ -53,10 +57,12 @@ function analyseCall(transcription){
         if (text.channel === 'Customer'){ //Calculate line and wordcount for Customers
             eventData.lineCount.customer++
             eventData.wordCount.customer += text.text.split(' ').length
+            eventData.talkLength.customer += text.end - text.start
         }
         else { //Calculate line and wordcount for Customers
             eventData.lineCount.agent++
             eventData.wordCount.agent += text.text.split(' ').length
+            eventData.talkLength.agent += text.end - text.start
         }
 
         if ( text.start > (maxTime + silenceThreshold)){ //Calculate silence events

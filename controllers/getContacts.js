@@ -35,11 +35,11 @@ function getDefaultContactData(sessionId, date=moment().format('YYYY-MM-DD')){
             }}
             query.url = query.url + '&beginDate=' + date + '&endDate=' + date
             const count = (await axios(query)).data.count
-            console.log('Number to fetch: ' + count);
+            console.log('Calls to fetch: ' + count);
             let contacts = []
             for (let min = 0; min < count; min += limit) {
                 const max = min + limit - 1
-                console.log({min, max});
+                // console.log({min, max});
                 const cQuery = {
                     ...contactQuery,
                     headers: {
@@ -69,11 +69,11 @@ function getChatContacts(sessionId, date=moment().format('YYYY-MM-DD')){
             }}
             query.url = query.url + '&beginDate=' + date + '&endDate=' + date
             const count = (await axios(query)).data.count
-            console.log('Number to fetch: ' + count);
+            console.log('Chats to fetch: ' + count);
             let contacts = []
             for (let min = 0; min < count; min += limit) {
                 const max = min + limit - 1
-                console.log({min, max});
+                // console.log({min, max});
                 const cQuery = {
                     ...chatQuery,
                     headers: {

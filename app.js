@@ -6,7 +6,7 @@ const {argv} = require('yargs')
 const moment = require('moment')
 
 //Std controllers
-const { logErr, logStd, logTab } = require('./controllers/logger')
+const { logErr, logStd, logTab, logSys } = require('./controllers/logger')
 const {connect, disconnect} = require('./controllers/connectDB')
 
 //Controllers
@@ -42,39 +42,9 @@ async function run(){
         if (argv.fetchContacts || argv.fc){
             logStd('Authenticating with Calabrio')
             const {sessionId} = (await authCalabrio()).data
-
             const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
-            
             logStd('Fetching transcripts for ' + date)
-            const contacts = await getDefaultContactData(sessionId, date)
-            const contactProgress = new Progress('Transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: contacts.length, renderThrottle: 1000})
-            for ( let i=0; i<contacts.length; i++){
-                // if ( i === 0) console.log(contacts[i]);
-                const meta = createMetadata(contacts[i])
-                //Check if contact already exsists in Transcript model
-                if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
-                    const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
-                    // logTab(meta)
-                    await new Transcript({date, meta, mediaEnergy, transcript: convertTranscript(transcript.texts)}).save()
-                }
-                
-                contactProgress.tick()
-            }
-            const chatContacts = await getChatContacts(sessionId, date)
-            const chatProgress = new Progress('Chat transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: chatContacts.length, renderThrottle: 1000})
-            for ( let i = 0; i<chatContacts.length; i++){
-                const meta = createMetadata(chatContacts[i])
-                
-                if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
-                    // const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
-                    // logTab(meta)
-                    const chat = (await getChatTranscript(sessionId, meta.recordingId)).emailBody
-                    await new Transcript({date, meta, chat}).save()
-                }
-
-                chatProgress.tick()
-            }
-
+            await runFecthContacts(sessionId, date)
 
         }
         if (argv.createAISummary || argv.cs){
@@ -91,13 +61,60 @@ async function run(){
         }
 
         if ( startCron ){
-            logStd('Waiting for planned tasks')
+            // logStd('Waiting for planned tasks')
+            const cron = require('node-cron');
+            const CronConfig = require('./models/CronConfig')
+            const cronSchedule = await CronConfig.findOne({name: "Fetch transcriptions and do AI summary"})
+            cron.schedule(cronSchedule.minute + ' ' + cronSchedule.hour + ' * * ' + cronSchedule.weekDay, async _=>{
+                logSys('Transcriptions and AI Summaries cron job started')
+                logStd('Authenticating with Calabrio')
+                const {sessionId} = (await authCalabrio()).data
+                const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+                logStd('Fetching transcripts for ' + date)
+                await runFecthContacts(sessionId, date)
+                await analyseCallTranscriptions()
+                await createSummaries()
+                logSys('Transcriptions and AI Summaries cron job ended')
+            })    
+            logSys(`Waiting for cron job "${cronSchedule.name}" @${Number(cronSchedule.hour)<10 ? 0: ''}${cronSchedule.hour}:${Number(cronSchedule.minute)<10?0:''}${cronSchedule.minute} ${cronSchedule.weekDay === '*' ? 'every day': cronSchedule.weekDay}`)
         }
         else await disconnect(true)
 
     } catch (error) {
         logErr(error)
         disconnect(true)
+    }
+}
+
+async function runFecthContacts(sessionId, date){
+   
+    const contacts = await getDefaultContactData(sessionId, date)
+    const contactProgress = new Progress('Transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: contacts.length, renderThrottle: 1000})
+    for ( let i=0; i<contacts.length; i++){
+        // if ( i === 0) console.log(contacts[i]);
+        const meta = createMetadata(contacts[i])
+        //Check if contact already exsists in Transcript model
+        if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
+            const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
+            // logTab(meta)
+            await new Transcript({date, meta, mediaEnergy, transcript: convertTranscript(transcript.texts)}).save()
+        }
+        
+        contactProgress.tick()
+    }
+    const chatContacts = await getChatContacts(sessionId, date)
+    const chatProgress = new Progress('Chat transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: chatContacts.length, renderThrottle: 1000})
+    for ( let i = 0; i<chatContacts.length; i++){
+        const meta = createMetadata(chatContacts[i])
+        
+        if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
+            // const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
+            // logTab(meta)
+            const chat = (await getChatTranscript(sessionId, meta.recordingId)).emailBody
+            await new Transcript({date, meta, chat}).save()
+        }
+
+        chatProgress.tick()
     }
 }
 

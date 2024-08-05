@@ -68,7 +68,7 @@ function createSummaries(){
       reject(error)
     }
     finally {
-      logTab(status, "Run completed with: ")
+      logStd(status.success + " AI Summaries created successfully, " + status.failed + ' errors')
     }
   })
 }

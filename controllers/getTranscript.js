@@ -1,4 +1,5 @@
 const axios = require('axios')
+const { logErr } = require('./logger')
 
 const {C1BASEURL} = process.env
 
@@ -9,6 +10,15 @@ const transcriptQuery = {
         "Content-Type": "application/json"
     }
 }
+
+const chatQuery = {
+    method: 'GET',
+    url:  C1BASEURL + 'cas/textview',
+    headers: {
+        "Content-Type": "application/json"
+    }
+}
+
 
 const mediaEnergyQuery = {
     method: 'GET',
@@ -31,10 +41,16 @@ function getTranscriptForContact(sessionId, recordingId, callDuration){
             }}
             // energyQuery.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
             energyQuery.url = energyQuery.url + recordingId  + '?dataPoints=' + Math.ceil(callDuration/1000)
-            const mediaEnergy = (await axios(energyQuery)).data
-            mediaEnergy.channel_0_length = mediaEnergy.channel_0.length
-            mediaEnergy.channel_1_length = mediaEnergy.channel_1.length
-
+            let mediaEnergy = {}
+            try {
+                mediaEnergy = (await axios(energyQuery)).data
+                mediaEnergy.channel_0_length = mediaEnergy.channel_0.length
+                mediaEnergy.channel_1_length = mediaEnergy.channel_1.length
+            } catch (error) {
+                logErr('Failed to get media energy on ' + recordingId + "\n" + error.message)
+                // const mediaEnergy = {} 
+            }
+            
             resolve({transcript, mediaEnergy})
         } catch (error) {
             reject(error)
@@ -42,4 +58,22 @@ function getTranscriptForContact(sessionId, recordingId, callDuration){
     })
 }
 
-module.exports = {getTranscriptForContact}
+function getChatTranscript(sessionId, recordingId){
+    return new Promise(async (resolve, reject)=>{
+        const query = {...chatQuery}
+        query.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
+        query.params = {ccrid: recordingId}
+        try {
+            const chat = (await axios(query)).data
+            resolve(chat)
+        } catch (error) {
+            reject(error)
+        }
+
+    })
+}
+
+module.exports = {
+    getTranscriptForContact,
+    getChatTranscript
+}

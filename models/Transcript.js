@@ -3,7 +3,7 @@ const mongoose = require('mongoose')
 const MetaSchema = new mongoose.Schema({
     language: {
         required: true,
-        default: "Swedish",
+        default: "Unknown",
         type: String
     },
     recordingId: {
@@ -16,6 +16,11 @@ const MetaSchema = new mongoose.Schema({
     },
     callDuration: {
         type: Number
+    },
+    channel: {
+        type: String,
+        default: 'Phone',
+        required: true
     }
 }, {_id: false})
 
@@ -59,7 +64,9 @@ const ContactReasonSchema = new mongoose.Schema({
 
 const SilenceEventSchema = new mongoose.Schema({
     start: Number,
+    startTime: String,
     end: Number,
+    endTime: String,
     length: Number
 }, {_id: false})
 
@@ -113,11 +120,13 @@ const EnergySchema = new mongoose.Schema({
     },
     duration: {
         type: Number,
-        required: true
+        required: true,
+        default: 0
     },
     minmax: {
         type: Number,
-        required: true
+        required: true,
+        default: 0
     },
     channel_0: [Number],
     channel_1: [Number],
@@ -129,11 +138,21 @@ const EnergySchema = new mongoose.Schema({
     }
 }, {_id: false})
 
+const BGNoiseSchema = new mongoose.Schema({
+    avg: Number,
+    relative: Number,
+    avg2: Number,
+    relative2: Number
+}, {_id:false})
+
 
 const TranscriptSchema = new mongoose.Schema({
     meta: {type: MetaSchema, required: true},
     date: {type: String},
     transcript: [TextSchema],
+    chat: {
+        type: String
+    },
     summary: {
         type: String,
         default: 'TBC',
@@ -161,7 +180,9 @@ const TranscriptSchema = new mongoose.Schema({
         type: String
     },
     events: EventSchema,
-    mediaEnergy: EnergySchema
+    mediaEnergy: EnergySchema,
+    backgroundNoise: BGNoiseSchema
 }, {timestamps: true})
 
+TranscriptSchema.index({createdAt: 1},{expireAfterSeconds: 60*60*24*30});
 module.exports = mongoose.model('Transcript', TranscriptSchema)

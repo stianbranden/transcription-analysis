@@ -101,16 +101,18 @@ function summary(_id, largeModel = false) {
         try {
             // await db.connect()
             const client = new OpenAIClient(AZURE_OPENAI_ENDPOINT, new AzureKeyCredential(AZURE_OPENAI_API_KEY));
-            const transcript = await Transcript.findById(_id, "meta.language transcript.text transcript.channel").lean()
+            const transcript = await Transcript.findById(_id, "meta.language meta.channel chat transcript.text transcript.channel").lean()
             // for ( let i = 0; i < transcript.transcript.length; i++ ){
             //     const text = transcript.transcript[i]
             //     if ( text.channel === 'Customer') console.log(color.green(text.channel + ': ') + text.text);
             //     else console.log(color.blue(text.channel + ': ') + text.text);
             //     await sleep(350)                
             // }
-            if ( transcript.transcript.length > 0){
+            if ( transcript.chat || transcript.transcript.length > 0){
 
-              messages.push({role: "user", content: JSON.stringify(transcript)})
+              if (transcript.meta.channel === 'Chat' ) messages.push({role: 'user', content: transcript.chat})
+            
+              else messages.push({role: "user", content: JSON.stringify(transcript)})
               // console.log()
               // console.log('Azure OpenAI, please create a summary of this conversation and also a log the contact reason :D');
               // console.log()

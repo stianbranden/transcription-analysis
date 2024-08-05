@@ -12,9 +12,9 @@ const {connect, disconnect} = require('./controllers/connectDB')
 //Controllers
 const createMetadata = require('./controllers/createMetadata')
 const convertTranscript = require('./controllers/convertTranscript')
-const { getDefaultContactData } = require('./controllers/getContacts')
+const { getDefaultContactData, getChatContacts } = require('./controllers/getContacts')
 const authCalabrio = require('./controllers/authCalabrio') 
-const { getTranscriptForContact } = require('./controllers/getTranscript')
+const { getTranscriptForContact, getChatTranscript } = require('./controllers/getTranscript')
 const {createSummaries} = require('./controllers/getSummary')
 const analyseContactReason = require('./controllers/analyseContactReason')
 const { analyseCallTranscriptions } = require('./controllers/analyseCall')
@@ -57,9 +57,25 @@ async function run(){
                     // logTab(meta)
                     await new Transcript({date, meta, mediaEnergy, transcript: convertTranscript(transcript.texts)}).save()
                 }
-
+                
                 contactProgress.tick()
             }
+            const chatContacts = await getChatContacts(sessionId, date)
+            const chatProgress = new Progress('Chat transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: chatContacts.length, renderThrottle: 1000})
+            for ( let i = 0; i<chatContacts.length; i++){
+                const meta = createMetadata(chatContacts[i])
+                
+                if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
+                    // const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
+                    // logTab(meta)
+                    const chat = (await getChatTranscript(sessionId, meta.recordingId)).emailBody
+                    await new Transcript({date, meta, chat}).save()
+                }
+
+                chatProgress.tick()
+            }
+
+
         }
         if (argv.createAISummary || argv.cs){
             logStd('Creating summaries of contacts')

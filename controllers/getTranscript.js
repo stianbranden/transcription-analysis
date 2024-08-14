@@ -25,32 +25,40 @@ const mediaEnergyQuery = {
     url:  C1BASEURL + 'recording/media/energy/'
 }
 
+async function returnMediaEnergy(sessionId, recordingId, callDuration){
+    const energyQuery = {...mediaEnergyQuery, headers: {
+        cookie: "hazelcast.sessionId=" + sessionId
+    }}
+    // energyQuery.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
+    energyQuery.url = energyQuery.url + recordingId  + '?dataPoints=' + Math.ceil(callDuration/1000)
+    let mediaEnergy = {}
+    try {
+        mediaEnergy = (await axios(energyQuery)).data
+        mediaEnergy.channel_0_length = mediaEnergy.channel_0.length
+        mediaEnergy.channel_1_length = mediaEnergy.channel_1.length
+    } catch (error) {
+        logErr('Failed to get media energy on ' + recordingId + "\n" + error.message)
+        // const mediaEnergy = {} 
+    } finally {
+        return mediaEnergy
+    }
+}
+
+async function returnTranscript(sessionId, recordingId){
+    const query = {...transcriptQuery}
+    query.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
+    query.data = {
+        ccrid: recordingId,
+        isRootRecording: false   
+    }
+    const transcript = (await axios(query)).data
+    return transcript
+}
 
 function getTranscriptForContact(sessionId, recordingId, callDuration){
     return new Promise(async(resolve, reject)=>{
         try {
-            const query = {...transcriptQuery}
-            query.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
-            query.data = {
-                ccrid: recordingId,
-                isRootRecording: false   
-            }
-            const transcript = (await axios(query)).data
-            const energyQuery = {...mediaEnergyQuery, headers: {
-                cookie: "hazelcast.sessionId=" + sessionId
-            }}
-            // energyQuery.headers['Cookie'] = "hazelcast.sessionId=" + sessionId
-            energyQuery.url = energyQuery.url + recordingId  + '?dataPoints=' + Math.ceil(callDuration/1000)
-            let mediaEnergy = {}
-            try {
-                mediaEnergy = (await axios(energyQuery)).data
-                mediaEnergy.channel_0_length = mediaEnergy.channel_0.length
-                mediaEnergy.channel_1_length = mediaEnergy.channel_1.length
-            } catch (error) {
-                logErr('Failed to get media energy on ' + recordingId + "\n" + error.message)
-                // const mediaEnergy = {} 
-            }
-            
+            const [transcript, mediaEnergy] = await Promise.all([returnTranscript(sessionId, recordingId),returnMediaEnergy(sessionId, recordingId, callDuration) ])
             resolve({transcript, mediaEnergy})
         } catch (error) {
             reject(error)

@@ -65,18 +65,23 @@ async function run(){
             const cron = require('node-cron');
             const CronConfig = require('./models/CronConfig')
             const cronSchedule = await CronConfig.findOne({name: "Fetch transcriptions and do AI summary"})
-            cron.schedule(cronSchedule.minute + ' ' + cronSchedule.hour + ' * * ' + cronSchedule.weekDay, async _=>{
-                logSys('Transcriptions and AI Summaries cron job started')
-                logStd('Authenticating with Calabrio')
-                const {sessionId} = (await authCalabrio()).data
-                const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
-                logStd('Fetching transcripts for ' + date)
-                await runFecthContacts(sessionId, date)
-                await analyseCallTranscriptions()
-                await createSummaries()
-                logSys('Transcriptions and AI Summaries cron job ended')
-            })    
-            logSys(`Waiting for cron job "${cronSchedule.name}" @${Number(cronSchedule.hour)<10 ? 0: ''}${cronSchedule.hour}:${Number(cronSchedule.minute)<10?0:''}${cronSchedule.minute} ${cronSchedule.weekDay === '*' ? 'every day': cronSchedule.weekDay}`)
+            logSys('Starting one time job to remove backlog')
+            startJobs().then(_=>{ //Fetching all data for today to avoid cluttering
+                cron.schedule(cronSchedule.minute + ' ' + cronSchedule.hour + ' * * ' + cronSchedule.weekDay, async _=>{
+                    // logSys('Transcriptions and AI Summaries cron job started')
+                    // logStd('Authenticating with Calabrio')
+                    // const {sessionId} = (await authCalabrio()).data
+                    // const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+                    // logStd('Fetching transcripts for ' + date)
+                    // await runFecthContacts(sessionId, date)
+                    // await Promise.all([analyseCallTranscriptions(),createSummaries()])
+                    // // await analyseCallTranscriptions()
+                    // // await createSummaries()
+                    // logSys('Transcriptions and AI Summaries cron job ended')
+                    startJobs()
+                })    
+                logSys(`Waiting for cron job "${cronSchedule.name}" @${Number(cronSchedule.hour)<10 ? 0: ''}${cronSchedule.hour}:${Number(cronSchedule.minute)<10?0:''}${cronSchedule.minute} ${cronSchedule.weekDay === '*' ? 'every day': cronSchedule.weekDay}`)
+            })
         }
         else await disconnect(true)
 
@@ -84,6 +89,26 @@ async function run(){
         logErr(error)
         disconnect(true)
     }
+}
+
+function startJobs(){
+    return new Promise( async (resolve, reject)=>{
+        try {
+            logSys('Transcriptions and AI Summaries cron job started')
+            logStd('Authenticating with Calabrio')
+            const {sessionId} = (await authCalabrio()).data
+            const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+            logStd('Fetching transcripts for ' + date)
+            await runFecthContacts(sessionId, date)
+            await Promise.all([analyseCallTranscriptions(),createSummaries()])
+            // await analyseCallTranscriptions()
+            // await createSummaries()
+            logSys('Transcriptions and AI Summaries cron job ended')
+            resolve('ok')
+        } catch (error) {
+            reject(error)
+        }
+    })
 }
 
 async function runFecthContacts(sessionId, date){

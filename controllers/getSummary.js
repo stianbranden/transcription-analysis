@@ -51,6 +51,16 @@ function createSummaries(){
               logErr(error.message)
             }
           }
+          else if ( error.message.includes("have exceeded token rate limit") ){
+            logStd('Token rate limit exceeded, waiting 10 seconds')
+            try {
+              await sleep(10000)
+              await summary(transcripts[i])
+            } catch (error) {
+              status.failed++
+              logErr(error.message)
+            }
+          }
           else {
             status.failed++
             logErr(error.message)

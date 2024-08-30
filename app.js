@@ -158,7 +158,7 @@ function startJobs(yesterday=false){
 
 async function runFetchContacts(sessionId, date, yesterday=false){
     if (yesterday) lastFetch = moment()
-    logTab({lastFetch: lastFetch.format()})
+    // logTab({lastFetch: lastFetch.format()})
     const contacts = await getDefaultContactData(sessionId, date, lastFetch.subtract(lastFetch.format('H')=== '0' ? 0: 1, 'hour').format('HH:mm'))
     lastFetch = moment(contacts.reduce((max, obj)=>{
         return obj.startTime > max ? obj.startTime: max

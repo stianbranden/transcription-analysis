@@ -26,7 +26,7 @@ const { cleanUpErrors } = require('./controllers/transcriptMaintenance')
 //Params
 const startCron = Object.keys(argv).length === 2
 let lastFetch = moment(argv.d || argv.date).startOf('day')
-console.log(lastFetch.format('HH:mm'));
+// console.log(lastFetch.format('HH:mm'));
 
 
 async function run(){

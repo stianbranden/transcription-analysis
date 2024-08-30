@@ -1,5 +1,6 @@
 const axios = require('axios')
 const moment = require('moment')
+const { logStd } = require('./logger')
 
 const {C1BASEURL} = process.env
 
@@ -30,15 +31,15 @@ function getDefaultContactData(sessionId, date=moment().format('YYYY-MM-DD'), st
         try {
             // const min = 0
             // let  max = 999
-            console.log({sessionId, date, startTime});
+            // console.log({sessionId, date, startTime});
             
             const query = {...statQuery, headers: {
                 cookie: "hazelcast.sessionId=" + sessionId
             }}
             query.url = query.url + '&beginDate=' + date + '&endDate=' + date + '&beginTime=' + startTime + '&endTime=23:59'
-            console.log(query.url)
+            // console.log(query.url)
             const count = (await axios(query)).data.count
-            console.log('Calls to fetch: ' + count);
+            logStd('Calls found: ' + count);
             let contacts = []
             for (let min = 0; min < count; min += limit) {
                 const max = min + limit - 1
@@ -72,7 +73,7 @@ function getChatContacts(sessionId, date=moment().format('YYYY-MM-DD')){
             }}
             query.url = query.url + '&beginDate=' + date + '&endDate=' + date
             const count = (await axios(query)).data.count
-            console.log('Chats to fetch: ' + count);
+            logStd('Chats found: ' + count)
             let contacts = []
             for (let min = 0; min < count; min += limit) {
                 const max = min + limit - 1

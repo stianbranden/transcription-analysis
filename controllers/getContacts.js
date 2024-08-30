@@ -25,15 +25,18 @@ const statChatQuery = {
 }
 
 //beginDate=2024-05-02&endDate=2024-05-02&
-function getDefaultContactData(sessionId, date=moment().format('YYYY-MM-DD')){
+function getDefaultContactData(sessionId, date=moment().format('YYYY-MM-DD'), startTime='00:00'){
     return new Promise(async(resolve, reject)=>{
         try {
             // const min = 0
             // let  max = 999
+            console.log({sessionId, date, startTime});
+            
             const query = {...statQuery, headers: {
                 cookie: "hazelcast.sessionId=" + sessionId
             }}
-            query.url = query.url + '&beginDate=' + date + '&endDate=' + date
+            query.url = query.url + '&beginDate=' + date + '&endDate=' + date + '&beginTime=' + startTime + '&endTime=23:59'
+            console.log(query.url)
             const count = (await axios(query)).data.count
             console.log('Calls to fetch: ' + count);
             let contacts = []
@@ -47,7 +50,7 @@ function getDefaultContactData(sessionId, date=moment().format('YYYY-MM-DD')){
                         Range: "items="+ min + "-" + max
                     }
                 }
-                cQuery.url = cQuery.url + '&beginDate=' + date + '&endDate=' + date
+                cQuery.url = cQuery.url + '&beginDate=' + date + '&endDate=' + date + '&beginTime=' + startTime + '&endTime=23:59'
                 const newContacts = (await axios(cQuery)).data
                 contacts = [...contacts, ...newContacts]
             }

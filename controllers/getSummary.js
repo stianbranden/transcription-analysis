@@ -186,7 +186,7 @@ function summary(_id, largeModel = false) {
             // console.log(error);
             await Transcript.findByIdAndUpdate(_id, {
               hasError: true,
-              errorMessage: error.message,
+              errorMessage: error?.message || error,
               hasSummary: true
             })
             reject(error)

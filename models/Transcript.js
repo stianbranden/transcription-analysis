@@ -43,6 +43,10 @@ const TextSchema = new mongoose.Schema({
 }, {_id: false})
 
 const ContactReasonSchema = new mongoose.Schema({
+    service_journey: {
+        fullname: String,
+        abbreviation: String
+    },
     level1: {
         type: String,
         default: 'N/A',

@@ -7,6 +7,7 @@ const Progress = require('progress');
 const { logErr, logTab, logStd } = require("./logger");
 const { createOrUpdateTokenUsage } = require("./logTokensUsed");
 const contact_reasons = require('../training_data/contact_reasons')
+const service_journeys = require('../training_data/service_journeys')
 // console.log({AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY})
 
 
@@ -90,6 +91,10 @@ const json_summary_template = {
 
 const json_contact_reason_template = {
   contact_reason: {
+    service_journey: {
+      fullname: "string",
+      abbreviation: "string"
+    },
     level1: "string",
     level2: "string", 
     confidence: "Number from 0 to 100"
@@ -143,7 +148,7 @@ function summary(_id, largeModel = false) {
               const data = JSON.parse(cleanResult(result.choices[0].message.content))
               // console.log(data);
               const messages2 = [
-                {role: 'system', content: "Based on this summary of a conversation of a electronics reatil contact center, categorize the contact reason of the conversation using the set list of contact reasons. Return contact reason as a json object with the format: " + JSON.stringify(json_contact_reason_template) + ". The list of contact reasons are: " + JSON.stringify(contact_reasons) },
+                {role: 'system', content: "Based on this summary of a conversation of a electronics reatil contact center, categorize the service journey and contact reason of the conversation using the set list of service journeys and contact reasons. Return service journey and contact reason as a json object with the format: " + JSON.stringify(json_contact_reason_template) + ". The list of contact reasons are: " + JSON.stringify(contact_reasons) + ". the list of Service journeys are: " + JSON.stringify(service_journeys) },
                 {role: 'user', content: data.summary}
               ]
               // await sleep(1000)

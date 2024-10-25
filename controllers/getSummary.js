@@ -110,7 +110,7 @@ function cleanResult(result){
 function summary(_id, largeModel = false) {
   const messages = [
     // { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. In addition, using a 3 level granularity, you categorize the contact reason of the conversation. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\", \"level3\": \"example level 3\"}}" },
-    { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. You also analyse the customer sentiment. Return the answer as json object with the format: " + JSON.stringify(json_summary_template)}
+    { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. Leave out customer data like address, name, etc in the summary. You also analyse the customer sentiment. Return the answer as json object with the format: " + JSON.stringify(json_summary_template)}
     
     //In addition, categorize the contact reason of the conversation using the set list of contact reasons. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\"}}. The list of contact reasons are: " + JSON.stringify(contact_reasons) },
   //   { role: "user", content: "Does Azure OpenAI support customer managed keys?" },

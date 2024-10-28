@@ -180,6 +180,11 @@ const TranscriptSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    hasMetadataPushed: {
+        type: Boolean,
+        required: true,
+        default: false
+    },
     errorMessage: {
         type: String
     },

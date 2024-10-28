@@ -22,6 +22,7 @@ const { analyseCallTranscriptions } = require('./controllers/analyseCall')
 //Models
 const Transcript = require('./models/Transcript')
 const { cleanUpErrors } = require('./controllers/transcriptMaintenance')
+const writeMetadata = require('./controllers/writeMetadata')
 
 //Params
 const startCron = Object.keys(argv).length === 2
@@ -83,7 +84,10 @@ async function run(){
             logSys('Full Run ended')
 
         }
-        
+        if ( argv.writeMetadata || argv.wm ){
+            const {sessionId} = (await authCalabrio()).data
+            await writeMetadata(sessionId)
+        }
 
         if ( startCron ){
             // logStd('Waiting for planned tasks')
@@ -146,6 +150,7 @@ function startJobs(yesterday=false){
             logStd('Fetching transcripts for ' + date)
             await runFetchContacts(sessionId, date, yesterday)
             await Promise.all([analyseCallTranscriptions(),createSummaries()])
+            await writeMetadata(sessionId)
             // await analyseCallTranscriptions()
             // await createSummaries()
             logSys('Transcriptions and AI Summaries cron job ended')

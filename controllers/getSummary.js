@@ -34,7 +34,7 @@ function createSummaries(){
         } catch (error) {
           tries ++
           logErr(transcripts[i] + ' Failed')
-          if (error.message.includes("Unexpected token")){
+          if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
             logStd('Retrying')
             try {
               await summary(transcripts[i])

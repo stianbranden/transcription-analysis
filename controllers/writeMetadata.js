@@ -32,7 +32,7 @@ function getMetadataObject(transcript){
 function writeMetadata(sessionId){
     return new Promise (async (resolve, reject)=>{
         try {
-            const transcripts = await Transcript.find({hasMetadataPushed: false}).lean()
+            const transcripts = await Transcript.find({hasMetadataPushed: false, hasSummary: true, summary: {$ne: 'TBC'}}).lean()
             logStd('Pushing ' + transcripts.length + ' contact metadatas back to Calabrio')
             const funcs = []
             for (let i= 0; i < transcripts.length; i++){

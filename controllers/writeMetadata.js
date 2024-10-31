@@ -12,15 +12,15 @@ function getMetadataObject(transcript){
     return [
         {
             "name":"automatic-contact-reason-level-1-key",
-            "value" : transcript.contactReason.level1 || 'N/A'
+            "value" : transcript.contactReason?.level1 || 'N/A'
         },
         {
             "name":"automatic-contact-reason-level-2-key",
-            "value" : transcript.contactReason.level2 || 'N/A'
+            "value" : transcript.contactReason?.level2 || 'N/A'
         },
         {
             "name":"service-journey-key",
-            "value" : transcript.contactReason.service_journey.fullname || 'N/A'
+            "value" : transcript.contactReason.service_journey?.fullname || 'N/A'
         },
         {
             "name":"automatic-sentiment-key",

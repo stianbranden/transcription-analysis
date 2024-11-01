@@ -168,7 +168,7 @@ function summary(_id, largeModel = false) {
                 // console.log('Level 3: ' + data["contact_reason"].level3);
                 // console.log()
                 // console.log()
-                const result2 = await client.getChatCompletions(GPT35_MODEL_NAME, messages2, {response_format: "json_object", temperature: 0.3})
+                const result2 = await client.getChatCompletions(GPT35_MODEL_NAME, messages2, {response_format: "json_object", temperature: 0.0})
                 await createOrUpdateTokenUsage(result2)
                 const parsed = JSON.parse(cleanResult(result2.choices[0].message.content))
                 const contact_reason = parsed || result2.choices[0].message.content

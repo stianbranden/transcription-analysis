@@ -147,8 +147,17 @@ function summary(_id, largeModel = false) {
                 // console.log(result.choices[0].message.content);
               const data = JSON.parse(cleanResult(result.choices[0].message.content))
               // console.log(data);
+              //const initialPrompt = "Based on this summary of a conversation of a electronics reatil contact center, categorize the service journey and contact reason of the conversation using the set list of service journeys and contact reasons. Return service journey and contact reason as a json object with the format: " + JSON.stringify(json_contact_reason_template) + ". The list of contact reasons are: " + JSON.stringify(contact_reasons) + ". the list of Service journeys are: " + JSON.stringify(service_journeys)
+              const initialPrompt = `
+                You are a categorisation assistant. 
+                Based on the provided summary of a conversation between an electronic retail contacts center and a customer, 
+                select the best service journey and contact reason from the lists below. If you cannot find a good fit, select the option "Unknown".
+                The list of Service Journeys are: ${JSON.stringify(service_journeys)}.
+                The list of Contact reasons are: ${JSON.stringify(contact_reasons)}.
+                Please respond only in JSON format: ${JSON.stringify(json_contact_reason_template)}`
+
               const messages2 = [
-                {role: 'system', content: "Based on this summary of a conversation of a electronics reatil contact center, categorize the service journey and contact reason of the conversation using the set list of service journeys and contact reasons. Return service journey and contact reason as a json object with the format: " + JSON.stringify(json_contact_reason_template) + ". The list of contact reasons are: " + JSON.stringify(contact_reasons) + ". the list of Service journeys are: " + JSON.stringify(service_journeys) },
+                {role: 'system', content: initialPrompt },
                 {role: 'user', content: data.summary}
               ]
               // await sleep(1000)

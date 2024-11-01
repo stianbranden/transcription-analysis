@@ -76,9 +76,12 @@ module.exports = [
       "subcategories": [
         "Promotions and Discounts",
         "Store Information",
-        "General Customer Service",
-        "Cannot ascertain reason"
+        "General Customer Service"
       ]
+    },
+    {
+      "title": "Unknown",
+      "subcategories": ["Uknown"]
     }
   ]
   

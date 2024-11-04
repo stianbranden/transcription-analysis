@@ -15,25 +15,15 @@ const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms));
 };
 
-
-function createSummaries(){
-  return new Promise( async(resolve, reject)=>{
-    const status = {success: 0, failed: 0}
+function runSummary(id, status){
+  return new Promise (async (resolve, reject)=>{
     try {
-      // await db.connect()
-
-      // const _id = "662f4ea597c09f2ee68e2fda"
-      // await summary(_id)
-
-      const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
-      const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
-      for ( let i = 0; i < transcripts.length; i++){
-        let tries = 0
+      let tries = 0
         try {
-          await summary(transcripts[i])
+          await summary(id)
         } catch (error) {
           tries ++
-          logErr(transcripts[i] + ' Failed')
+          logErr(id + ' Failed')
           if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
             logStd('Retrying')
             try {
@@ -46,7 +36,7 @@ function createSummaries(){
           else if ( error.message.includes("This model's maximum context length") ){
             logStd('Retrying with bigger model')
             try {
-              await summary(transcripts[i], true)
+              await summary(id, true)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -56,7 +46,7 @@ function createSummaries(){
             logStd('Token rate limit exceeded, waiting 10 seconds')
             try {
               await sleep(10000)
-              await summary(transcripts[i])
+              await summary(id)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -69,8 +59,72 @@ function createSummaries(){
 
         }
         status.success++
-        aiBar.tick()
+      resolve('ok')
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+function createSummaries(){
+  return new Promise( async(resolve, reject)=>{
+    const status = {success: 0, failed: 0}
+    try {
+      // await db.connect()
+
+      // const _id = "662f4ea597c09f2ee68e2fda"
+      // await summary(_id)
+
+      const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
+      logStd(`Creating summaries for ${transcripts.length} contacts`)
+      // const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
+      const funcs = []
+      for ( let i = 0; i < transcripts.length; i++){
+        // let tries = 0
+        // try {
+        //   await summary(transcripts[i])
+        // } catch (error) {
+        //   tries ++
+        //   logErr(transcripts[i] + ' Failed')
+        //   if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
+        //     logStd('Retrying')
+        //     try {
+        //       await summary(transcripts[i])
+        //     } catch (error) {
+        //       status.failed++
+        //       logErr(error.message)
+        //     }
+        //   }
+        //   else if ( error.message.includes("This model's maximum context length") ){
+        //     logStd('Retrying with bigger model')
+        //     try {
+        //       await summary(transcripts[i], true)
+        //     } catch (error) {
+        //       status.failed++
+        //       logErr(error.message)
+        //     }
+        //   }
+        //   else if ( error.message.includes("have exceeded token rate limit") ){
+        //     logStd('Token rate limit exceeded, waiting 10 seconds')
+        //     try {
+        //       await sleep(10000)
+        //       await summary(transcripts[i])
+        //     } catch (error) {
+        //       status.failed++
+        //       logErr(error.message)
+        //     }
+        //   }
+        //   else {
+        //     status.failed++
+        //     logErr(error.message)
+        //   }
+
+        // }
+        // status.success++
+        // aiBar.tick()
+        funcs.push(runSummary(transcripts[i], status))
       }
+      await Promise.allSettled(funcs)
       resolve('ok')
       // await db.disconnect() 
     } catch (error) {
@@ -177,7 +231,8 @@ function summary(_id, largeModel = false) {
                   summary: data.summary,
                   contactReason: contact_reason["contact_reason"],
                   sentiment: data.sentiment,
-                  hasSummary: true
+                  hasSummary: true,
+                  hasMetadataPushed: false
                 })
               
     
@@ -208,8 +263,36 @@ function summary(_id, largeModel = false) {
     })
 }
 
+function fixWrongContactReasons(date){
+  return new Promise( async (resolve, reject)=>{
+    try {
+      const query = {
+        date, 
+        hasSummary: true, 
+        $or: [
+          {"contactReason.service_journey.fullname": {$nin: service_journeys.map(a=>a.fullname)}}, 
+          {"contactReason.level1": {$nin: contact_reasons.map(a=>a.title)}}
+        ]
+      }
+      // console.log(JSON.stringify(query))
+      const contacts = await Transcript.find(query).lean()
+      // console.log(`Prerun: Contacts with non-fitting contact reason level 1: ${contacts.length}`);
+      const rerun = await Promise.allSettled(contacts.map(a=>summary(a._id)))
+      // console.log(rerun);
+      // console.log(`Afterrun: Contacts with non-fitting contact reason level 1: ${(await Transcript.find(query).lean()).length}`);
+
+      logStd(`Non-fitting Contact reasons: ${contacts.length}, reduced to ${(await Transcript.find(query).lean()).length}`)
+      
+      
+      resolve('ok')
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
 // summary().catch((err) => {
 //   console.error("The sample encountered an error:", err);
 // });
 
-module.exports = { createSummaries };
+module.exports = { createSummaries, fixWrongContactReasons}

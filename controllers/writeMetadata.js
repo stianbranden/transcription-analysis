@@ -1,6 +1,7 @@
 const axios = require('axios')
 const Transcript = require('../models/Transcript')
 const { logErr, logTab, logStd } = require('./logger')
+const { sleepAsync } = require('./utils')
 const {C1BASEURL} = process.env
 
 const writeMetadataQuery =  {
@@ -34,17 +35,26 @@ function writeMetadata(sessionId){
         try {
             const transcripts = await Transcript.find({hasMetadataPushed: false, hasSummary: true, summary: {$ne: 'TBC'}}).lean()
             logStd('Pushing ' + transcripts.length + ' contact metadatas back to Calabrio')
-            const funcs = []
-            for (let i= 0; i < transcripts.length; i++){
-                funcs.push(pushMetadata(sessionId, transcripts[i]))
+            const step = 100
+            for ( let j = 0; j < transcripts.length; j+=step){
+                if ( j > 0 ) await sleepAsync(1000)
+                const funcs = transcripts.slice(j, j+step).map(a=>pushMetadata(sessionId, a))
+                // for (let i= 0; i < transcripts.length; i++){
+                //     funcs.push(pushMetadata(sessionId, transcripts[i]))
+                // }
+                const results = await Promise.allSettled(funcs)
+                const result = {
+                    fulfilled: 0,
+                    rejected: 0
+                }
+                results.forEach(r=>result[r.status]++)
+                logStd(`Contact ${j} to ${j+funcs.length}. Success: ${result.fulfilled}. Fails: ${result.rejected}`)
+                // logStd(result.fulfilled + ` contacts pushed to Calabrio (${result.rejected} failed)`)
+
+
             }
-            const results = await Promise.allSettled(funcs)
-            const result = {
-                fulfilled: 0,
-                rejected: 0
-            }
-            results.forEach(r=>result[r.status]++)
-            logTab(result, 'WriteMetadataResults')
+
+            // logTab(result, 'WriteMetadataResults')
             resolve('ok')
         } catch (error) {
             logErr(error.message)
@@ -74,7 +84,7 @@ function pushMetadata(sessionId, transcript){
             resolve(res.status)  
         } catch (error) {
             logErr(error.message)
-            reject(error.response?.status || 999)
+            reject(error)
         }
 
     })

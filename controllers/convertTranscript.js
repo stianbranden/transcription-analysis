@@ -5,22 +5,24 @@
 
 function convertTranscript(texts){
     const transcript = []
-    texts.forEach(a=>{
-        const {text, channel, hits, start, end} = a
-        const h = []
-        hits.forEach(hit=>{
-            h.push(hit.category)
+    if ( texts ){
+        texts.forEach(a=>{
+            const {text, channel, hits, start, end} = a
+            const h = []
+            hits.forEach(hit=>{
+                h.push(hit.category)
+            })
+    
+            transcript.push({
+                text,
+                start, 
+                end, 
+                channel: channel === 1 ? 'Customer Service' : 'Customer',
+                hits: h
+            })
         })
-
-        transcript.push({
-            text,
-            start, 
-            end, 
-            channel: channel === 1 ? 'Customer Service' : 'Customer',
-            hits: h
-        })
-    })
-    return transcript
+        return transcript
+    }
 }
 
 module.exports = convertTranscript

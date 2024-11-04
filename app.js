@@ -15,7 +15,7 @@ const convertTranscript = require('./controllers/convertTranscript')
 const { getDefaultContactData, getChatContacts } = require('./controllers/getContacts')
 const authCalabrio = require('./controllers/authCalabrio') 
 const { getTranscriptForContact, getChatTranscript } = require('./controllers/getTranscript')
-const {createSummaries} = require('./controllers/getSummary')
+const {createSummaries, fixWrongContactReasons} = require('./controllers/getSummary')
 const analyseContactReason = require('./controllers/analyseContactReason')
 const { analyseCallTranscriptions } = require('./controllers/analyseCall')
 
@@ -23,6 +23,7 @@ const { analyseCallTranscriptions } = require('./controllers/analyseCall')
 const Transcript = require('./models/Transcript')
 const { cleanUpErrors } = require('./controllers/transcriptMaintenance')
 const writeMetadata = require('./controllers/writeMetadata')
+const { sleepAsync } = require('./controllers/utils')
 
 //Params
 const startCron = Object.keys(argv).length === 2
@@ -78,16 +79,24 @@ async function run(){
             await cleanUp(date)
             logStd('Authenticating with Calabrio')
             const {sessionId} = (await authCalabrio()).data
-            logStd('Fetching transcripts')
+            logStd('Fetching transcripts here')
             await runFetchContacts(sessionId, date)
             await Promise.all([analyseCallTranscriptions(),createSummaries()])
+            await fixWrongContactReasons(date)
+            await writeMetadata(sessionId)
             logSys('Full Run ended')
-
+            
         }
         if ( argv.writeMetadata || argv.wm ){
             const {sessionId} = (await authCalabrio()).data
             await writeMetadata(sessionId)
         }
+        
+        if ( argv.fixErrors || argv.fe ){
+            const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+            await fixWrongContactReasons(date)
+        }
+        
 
         if ( startCron ){
             // logStd('Waiting for planned tasks')
@@ -115,7 +124,7 @@ async function run(){
         else await disconnect(true)
 
     } catch (error) {
-        logErr(error)
+        logErr(error.message)
         disconnect(true)
     }
 }
@@ -150,9 +159,8 @@ function startJobs(yesterday=false){
             logStd('Fetching transcripts for ' + date)
             await runFetchContacts(sessionId, date, yesterday)
             await Promise.all([analyseCallTranscriptions(),createSummaries()])
+            await fixWrongContactReasons(date)
             await writeMetadata(sessionId)
-            // await analyseCallTranscriptions()
-            // await createSummaries()
             logSys('Transcriptions and AI Summaries cron job ended')
             resolve('ok')
         } catch (error) {
@@ -161,41 +169,81 @@ function startJobs(yesterday=false){
     })
 }
 
-async function runFetchContacts(sessionId, date, yesterday=false){
-    if (yesterday) lastFetch = moment()
-    // logTab({lastFetch: lastFetch.format()})
-    const contacts = await getDefaultContactData(sessionId, date, lastFetch.subtract(lastFetch.format('H')=== '0' ? 0: 1, 'hour').format('HH:mm'))
-    lastFetch = moment(contacts.reduce((max, obj)=>{
-        return obj.startTime > max ? obj.startTime: max
-    }, 0))
-    const contactProgress = new Progress('Transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: contacts.length, renderThrottle: 1000})
-    for ( let i=0; i<contacts.length; i++){
-        // if ( i === 0) console.log(contacts[i]);
-        const meta = createMetadata(contacts[i])
-        //Check if contact already exsists in Transcript model
-        if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
+function fetchTranscriptAndMediaEnergy(sessionId, contact, date){
+    return new Promise (async (resolve, reject)=>{
+        try {
+            const meta = createMetadata(contact)
             const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
-            // logTab(meta)
             await new Transcript({date, meta, mediaEnergy, transcript: convertTranscript(transcript.texts)}).save()
-        }
-        
-        contactProgress.tick()
-    }
-    const chatContacts = await getChatContacts(sessionId, date)
-    const chatProgress = new Progress('Chat transcripts [:bar] :current/:total (:percent) ETA: :etas', {total: chatContacts.length, renderThrottle: 1000})
-    for ( let i = 0; i<chatContacts.length; i++){
-        const meta = createMetadata(chatContacts[i])
-        
-        if (! await Transcript.exists({"meta.recordingId": meta.recordingId})){
-            // const {transcript, mediaEnergy} = await getTranscriptForContact(sessionId, meta.recordingId, meta.callDuration)
-            // logTab(meta)
+            resolve('ok')
+        } catch (error) {
+            reject(error)
+        }    
+    })
+}
+function fetchChatTranscript(sessionId, contact, date){
+    return new Promise (async (resolve, reject)=>{
+        try {
+            const meta = createMetadata(contact)
             const chat = (await getChatTranscript(sessionId, meta.recordingId)).emailBody
             await new Transcript({date, meta, chat}).save()
-        }
-
-        chatProgress.tick()
-    }
+            resolve('ok')
+        } catch (error) {
+            logErr(`Contact: ${contact.id}: ${error.message}`)
+            reject(error)
+        }    
+    })
 }
+
+// function sleepAsync(ms){
+//     return new Promise (async (resolve, reject)=>{
+//         setTimeout(_=>{
+//             resolve('ok')
+//         }, ms)
+//     })
+// }
+
+function runFetchContacts(sessionId, date, yesterday=false){
+    return new Promise (async (resolve, reject)=>{
+        try {
+            if (yesterday) lastFetch = moment()
+            const contacts = await getDefaultContactData(sessionId, date, lastFetch.subtract(lastFetch.format('H')=== '0' ? 0: 1, 'hour').format('HH:mm'))
+            lastFetch = moment(contacts.reduce((max, obj)=>{
+                return obj.startTime > max ? obj.startTime: max
+            }, 0))
+            const transcripts = (await Transcript.find({date}, "meta.recordingId").lean()).map(tr=>tr.meta.recordingId)
+            const diff = contacts.map(a=>a.id).filter(a=>!transcripts.includes(a))
+            // const funcs = diff.map(a=>fetchTranscriptAndMediaEnergy(sessionId, contacts.filter(b=>b.id===a)[0], date))
+            logStd('Fetching ' + diff.length + ' transcripts')
+            const step = 100
+            for (let i = 0; i < diff.length; i+=step){
+                if ( i > 0 ) await sleepAsync(1000)
+                const curr = diff.slice(i, i+step).map(a=>fetchTranscriptAndMediaEnergy(sessionId, contacts.filter(b=>b.id===a)[0], date))
+                let runs = await Promise.allSettled(curr)
+                // console.log(i, curr.length, curr[0],runs);
+                logStd(`Contact ${i} to ${i+runs.length} - Success: ${runs.filter(a=>a.status==='fulfilled').length}. Fails: ${runs.filter(a=>a.status === 'rejected').length}`)
+            }
+            
+            const chatContacts = await getChatContacts(sessionId, date)
+            const diff2 = chatContacts.map(a=>a.id).filter(a=>!transcripts.includes(a))
+            logStd('Fetching ' + diff2.length + ' chat logs')
+            for (let i = 0; i < diff2.length; i+=step){
+                if ( i > 0 ) await sleepAsync(1000)
+                const curr = diff2.slice(i, i+step).map(a=>fetchChatTranscript(sessionId, chatContacts.filter(b=>b.id===a)[0], date))
+                let runs = await Promise.allSettled(curr)
+                // console.log(i, curr.length, curr[0],runs);
+                logStd(`Contact ${i} to ${i+runs.length} - Success: ${runs.filter(a=>a.status==='fulfilled').length}. Fails: ${runs.filter(a=>a.status === 'rejected').length}`)
+            }
+
+            resolve('ok')
+        } catch (error) {
+            logErr(error.message)
+            reject(error)
+        }
+    })
+
+}
+
 
 run()
 // fs.writeFileSync('./output/data.json', JSON.stringify(outputData), 'utf8')

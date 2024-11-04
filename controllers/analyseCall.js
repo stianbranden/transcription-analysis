@@ -9,7 +9,7 @@ function analyseCallTranscriptions(){
     return new Promise( async (resolve, reject)=>{
         try {
             const transcripts = await Transcript.find({hasAnalysis: false, "mediaEnergy.minmax": {$gt:0}})  //{hasAnalysis: false})
-            const analysisBar = new Progress('Analysis [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
+            // const analysisBar = new Progress('Analysis [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
             for ( let i= 0; i < transcripts.length; i++){
                 const transcript = transcripts[i]
                 const events = analyseCall(transcript.transcript)
@@ -20,7 +20,7 @@ function analyseCallTranscriptions(){
                 transcript.backgroundNoise = bgnoise
                 transcript.hasAnalysis = true
 
-                analysisBar.tick()
+                // analysisBar.tick()
                 await transcript.save()
                 
             }

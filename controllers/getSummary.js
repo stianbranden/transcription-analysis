@@ -78,53 +78,60 @@ function createSummaries(){
       const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
       logStd(`Creating summaries for ${transcripts.length} contacts`)
       // const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
-      const funcs = []
-      for ( let i = 0; i < transcripts.length; i++){
-        // let tries = 0
-        // try {
-        //   await summary(transcripts[i])
-        // } catch (error) {
-        //   tries ++
-        //   logErr(transcripts[i] + ' Failed')
-        //   if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
-        //     logStd('Retrying')
-        //     try {
-        //       await summary(transcripts[i])
-        //     } catch (error) {
-        //       status.failed++
-        //       logErr(error.message)
-        //     }
-        //   }
-        //   else if ( error.message.includes("This model's maximum context length") ){
-        //     logStd('Retrying with bigger model')
-        //     try {
-        //       await summary(transcripts[i], true)
-        //     } catch (error) {
-        //       status.failed++
-        //       logErr(error.message)
-        //     }
-        //   }
-        //   else if ( error.message.includes("have exceeded token rate limit") ){
-        //     logStd('Token rate limit exceeded, waiting 10 seconds')
-        //     try {
-        //       await sleep(10000)
-        //       await summary(transcripts[i])
-        //     } catch (error) {
-        //       status.failed++
-        //       logErr(error.message)
-        //     }
-        //   }
-        //   else {
-        //     status.failed++
-        //     logErr(error.message)
-        //   }
+      // const funcs = []
+      // for ( let i = 0; i < transcripts.length; i++){
+      //   // let tries = 0
+      //   // try {
+      //   //   await summary(transcripts[i])
+      //   // } catch (error) {
+      //   //   tries ++
+      //   //   logErr(transcripts[i] + ' Failed')
+      //   //   if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
+      //   //     logStd('Retrying')
+      //   //     try {
+      //   //       await summary(transcripts[i])
+      //   //     } catch (error) {
+      //   //       status.failed++
+      //   //       logErr(error.message)
+      //   //     }
+      //   //   }
+      //   //   else if ( error.message.includes("This model's maximum context length") ){
+      //   //     logStd('Retrying with bigger model')
+      //   //     try {
+      //   //       await summary(transcripts[i], true)
+      //   //     } catch (error) {
+      //   //       status.failed++
+      //   //       logErr(error.message)
+      //   //     }
+      //   //   }
+      //   //   else if ( error.message.includes("have exceeded token rate limit") ){
+      //   //     logStd('Token rate limit exceeded, waiting 10 seconds')
+      //   //     try {
+      //   //       await sleep(10000)
+      //   //       await summary(transcripts[i])
+      //   //     } catch (error) {
+      //   //       status.failed++
+      //   //       logErr(error.message)
+      //   //     }
+      //   //   }
+      //   //   else {
+      //   //     status.failed++
+      //   //     logErr(error.message)
+      //   //   }
 
-        // }
-        // status.success++
-        // aiBar.tick()
-        funcs.push(runSummary(transcripts[i], status))
+      //   // }
+      //   // status.success++
+      //   // aiBar.tick()
+      //   funcs.push(runSummary(transcripts[i], status))
+      // }
+
+      const step = 100
+      for ( let i = 0; i < transcripts.length; i+=step){
+        await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status)))
+
       }
-      await Promise.allSettled(funcs)
+
+
       resolve('ok')
       // await db.disconnect() 
     } catch (error) {

@@ -136,7 +136,7 @@ function createSummaries(){
       //   funcs.push(runSummary(transcripts[i], status))
       // }
 
-      const step = 500
+      const step = 100
       for ( let i = 0; i < transcripts.length; i+=step){
         if ( i > 0) await sleepAsync(10000)
         await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status)))

@@ -7,7 +7,8 @@ const Progress = require('progress');
 const { logErr, logTab, logStd } = require("./logger");
 const { createOrUpdateTokenUsage } = require("./logTokensUsed");
 const contact_reasons = require('../training_data/contact_reasons')
-const service_journeys = require('../training_data/service_journeys')
+const service_journeys = require('../training_data/service_journeys');
+const { sleepAsync } = require("./utils");
 // console.log({AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY})
 
 
@@ -127,6 +128,7 @@ function createSummaries(){
 
       const step = 100
       for ( let i = 0; i < transcripts.length; i+=step){
+        if ( i > 0) await sleepAsync(5000)
         await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status)))
 
       }

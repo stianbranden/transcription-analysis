@@ -53,6 +53,16 @@ function runSummary(id, status){
               logErr(error.message)
             }
           }
+          else if ( error.message.includes("have exceeded call rate limit") ){
+            logStd('Call rate limit exceeded, waiting 10 seconds')
+            try {
+              await sleep(10000)
+              await summary(id)
+            } catch (error) {
+              status.failed++
+              logErr(error.message)
+            }
+          }
           else {
             status.failed++
             logErr(error.message)

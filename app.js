@@ -94,6 +94,7 @@ async function run(){
         
         if ( argv.fixErrors || argv.fe ){
             const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+            logStd(`Fixing errors for ${date}`)
             await fixWrongContactReasons(date)
         }
         

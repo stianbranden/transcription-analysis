@@ -81,7 +81,7 @@ module.exports = [
     },
     {
       "title": "Unknown",
-      "subcategories": ["Uknown"]
+      "subcategories": ["Unknown"]
     }
   ]
   

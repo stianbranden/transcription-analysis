@@ -139,8 +139,8 @@ function createSummaries(){
       const step = 100
       for ( let i = 0; i < transcripts.length; i+=step){
         if ( i > 0) await sleepAsync(10000)
-        await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status)))
-
+        const results = await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status)))
+        logStd(`Summary ${i} to ${i+step} complete. Success: ${results.filter(a=>a.status==='fulfilled').length}, Failed: ${results.filter(a=>a.status==='rejected').length}`)
       }
 
 

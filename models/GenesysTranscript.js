@@ -6,11 +6,11 @@ const MetaSchema = new mongoose.Schema({
         default: "Unknown",
         type: String
     },
-    recordingId: {
-        type: Number,
+    communicationId: {
+        type: String,
         required: true
     },
-    contactId: {
+    conversationId: {
         type: String,
         required: true
     },
@@ -21,6 +21,9 @@ const MetaSchema = new mongoose.Schema({
         type: String,
         default: 'Phone',
         required: true
+    },
+    queueId: {
+        type: String
     }
 }, {_id: false})
 
@@ -31,7 +34,8 @@ const TextSchema = new mongoose.Schema({
     },
     channel: {
         type: String,
-        required: true
+        required: true, 
+        default: 'unknown'
     },
     start: {
         type: Number
@@ -39,7 +43,13 @@ const TextSchema = new mongoose.Schema({
     end: {
         type: Number
     },
-    hits: [String]
+    stability: Number,
+    confidence: Number,
+    hits: [String],
+    wordCount: {
+        default: 0,
+        type: Number
+    }
 }, {_id: false})
 
 const ContactReasonSchema = new mongoose.Schema({
@@ -66,89 +76,23 @@ const ContactReasonSchema = new mongoose.Schema({
     }
 }, {_id: false})
 
-const SilenceEventSchema = new mongoose.Schema({
-    start: Number,
-    startTime: String,
-    end: Number,
-    endTime: String,
-    length: Number
-}, {_id: false})
 
-const EventSchema = new mongoose.Schema({
-    silenceEvents: [SilenceEventSchema],
-    totalSilence: {
-        type: Number,
-        default: 0
-    },
-    numOfSilenceEvents: {
-        type: Number
-    },
-    overtalkEvents: [SilenceEventSchema],
-    totalOvertalk: {
-        type: Number,
-        default: 0
-    },
-    numOfOvertalkEvents: {
-        type: Number
-    },
-    lineCount: {
-        customer: {
-            type: Number
-        },
-        agent: {
-            type: Number
-        }
-    },
-    wordCount: {
-        customer: {
-            type: Number
-        },
-        agent: {
-            type: Number
-        }
-    },
-    talkLength: {
-        customer: {
-            type: Number
-        },
-        agent: {
-            type: Number
-        }
+const SpeechTextAnalyticsSchema = new mongoose.Schema({
+    sentimentScore: Number,
+    sentimentTrend: Number,
+    sentimentTrendClass: String,
+    empathyScores: [ { score: Number, userId: String} ],
+    participantMetrics: {
+        agentDurationPercentage: Number,
+        customerDurationPercentage: Number,
+        silenceDurationPercentage: Number,
+        ivrDurationPercentage: Number,
+        acdDurationPercentage: Number,
+        otherDurationPercentage: Number,
+        overtalkDurationPercentage: Number,
+        overtalkCount: Number
     }
-}, {_id: false})
-
-const EnergySchema = new mongoose.Schema({
-    numChannels: {
-        type: Number,
-        default: 2
-    },
-    duration: {
-        type: Number,
-        required: true,
-        default: 0
-    },
-    minmax: {
-        type: Number,
-        required: true,
-        default: 0
-    },
-    channel_0: [Number],
-    channel_1: [Number],
-    channel_0_length: {
-        type: Number
-    },
-    channel_1_length: {
-        type: Number
-    }
-}, {_id: false})
-
-const BGNoiseSchema = new mongoose.Schema({
-    avg: Number,
-    relative: Number,
-    avg2: Number,
-    relative2: Number
 }, {_id:false})
-
 
 const TranscriptSchema = new mongoose.Schema({
     meta: {type: MetaSchema, required: true},
@@ -176,6 +120,10 @@ const TranscriptSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    hasTranscript: {
+        type: Boolean,
+        default: false
+    },
     hasError: {
         type: Boolean,
         default: false
@@ -188,15 +136,13 @@ const TranscriptSchema = new mongoose.Schema({
     errorMessage: {
         type: String
     },
-    events: EventSchema,
-    mediaEnergy: EnergySchema,
-    backgroundNoise: BGNoiseSchema,
     source: {
         type: String,
         required: true,
-        default: 'Calabrio'
-    }
+        default: 'Genesys'
+    },
+    speechToTextAnalytics: SpeechTextAnalyticsSchema
 }, {timestamps: true})
 
 TranscriptSchema.index({createdAt: 1},{expireAfterSeconds: 60*60*24*30});
-module.exports = mongoose.model('Transcript', TranscriptSchema)
+module.exports = mongoose.model('GenesysTranscript', TranscriptSchema)

@@ -2,6 +2,7 @@ const { OpenAIClient, AzureKeyCredential } = require("@azure/openai");
 const color = require('colors/safe');
 const {AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, GPT35_MODEL_NAME, GPT4_MODEL_NAME} = process.env
 const Transcript = require('../models/Transcript')
+const GenesysTranscript = require('../models/GenesysTranscript')
 const db = require('./connectDB')
 const Progress = require('progress');
 const { logErr, logTab, logStd } = require("./logger");
@@ -16,19 +17,19 @@ const sleep = (ms) => {
   return new Promise(resolve => setTimeout(resolve, ms));
 };
 
-function runSummary(id, status){
+function runSummary(id, status, source){
   return new Promise (async (resolve, reject)=>{
     try {
       let tries = 0
         try {
-          await summary(id)
+          await summary(id, false, source)
         } catch (error) {
           tries ++
           logErr(id + ' Failed')
           if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
             logStd('Retrying')
             try {
-              await summary(transcripts[i])
+              await summary(transcripts[i], source)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -37,7 +38,7 @@ function runSummary(id, status){
           else if ( error.message.includes("This model's maximum context length") ){
             logStd('Retrying with bigger model')
             try {
-              await summary(id, true)
+              await summary(id, true, source)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -47,7 +48,7 @@ function runSummary(id, status){
             logStd('Token rate limit exceeded, waiting 10 seconds')
             try {
               await sleep(10000)
-              await summary(id)
+              await summary(id, false, source)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -57,7 +58,7 @@ function runSummary(id, status){
             logStd('Call rate limit exceeded, waiting 10 seconds')
             try {
               await sleep(10000)
-              await summary(id)
+              await summary(id, false, source)
             } catch (error) {
               status.failed++
               logErr(error.message)
@@ -81,60 +82,9 @@ function createSummaries(){
   return new Promise( async(resolve, reject)=>{
     const status = {success: 0, failed: 0}
     try {
-      // await db.connect()
-
-      // const _id = "662f4ea597c09f2ee68e2fda"
-      // await summary(_id)
 
       const transcripts = (await Transcript.find({hasSummary: {$ne: true}}, "_id").lean()).map(tr=>tr._id.toString())
       logStd(`Creating summaries for ${transcripts.length} contacts`)
-      // const aiBar = new Progress('Summaries [:bar] :current/:total (:percent) ETA: :etas', {total: transcripts.length, renderThrottle: 1000})
-      // const funcs = []
-      // for ( let i = 0; i < transcripts.length; i++){
-      //   // let tries = 0
-      //   // try {
-      //   //   await summary(transcripts[i])
-      //   // } catch (error) {
-      //   //   tries ++
-      //   //   logErr(transcripts[i] + ' Failed')
-      //   //   if (error.message.includes("Unexpected token") || error.message.includes("Unexpected end of JSON input")){
-      //   //     logStd('Retrying')
-      //   //     try {
-      //   //       await summary(transcripts[i])
-      //   //     } catch (error) {
-      //   //       status.failed++
-      //   //       logErr(error.message)
-      //   //     }
-      //   //   }
-      //   //   else if ( error.message.includes("This model's maximum context length") ){
-      //   //     logStd('Retrying with bigger model')
-      //   //     try {
-      //   //       await summary(transcripts[i], true)
-      //   //     } catch (error) {
-      //   //       status.failed++
-      //   //       logErr(error.message)
-      //   //     }
-      //   //   }
-      //   //   else if ( error.message.includes("have exceeded token rate limit") ){
-      //   //     logStd('Token rate limit exceeded, waiting 10 seconds')
-      //   //     try {
-      //   //       await sleep(10000)
-      //   //       await summary(transcripts[i])
-      //   //     } catch (error) {
-      //   //       status.failed++
-      //   //       logErr(error.message)
-      //   //     }
-      //   //   }
-      //   //   else {
-      //   //     status.failed++
-      //   //     logErr(error.message)
-      //   //   }
-
-      //   // }
-      //   // status.success++
-      //   // aiBar.tick()
-      //   funcs.push(runSummary(transcripts[i], status))
-      // }
 
       const step = 100
       for ( let i = 0; i < transcripts.length; i+=step){
@@ -156,6 +106,43 @@ function createSummaries(){
     }
   })
 }
+
+function createSummariesGenesys(conversationId = null){
+  return new Promise( async(resolve, reject)=>{
+    const status = {success: 0, failed: 0}
+    try {
+      const transcripts = []
+      if (conversationId){ //This runs a continous single 
+        const contact = await GenesysTranscript.findOne({"meta.conversationId": conversationId}).lean()
+        transcripts.push(contact._id.toString())
+      }
+      else { //This runs a bulk job
+        transcripts.push(...(await GenesysTranscript.find({hasSummary: {$ne: true}, hasTranscript: true}, "_id").lean()).map(tr=>tr._id.toString()))
+      }
+      logStd(`Creating summaries for ${transcripts.length} contacts`)
+
+      const step = 100
+      for ( let i = 0; i < transcripts.length; i+=step){
+        if ( i > 0) await sleepAsync(10000)
+        const results = await Promise.allSettled(transcripts.slice(i, i+step).map(a=>runSummary(a, status, 'Genesys')))
+        logStd(`Summary ${i} to ${i+step} complete. Success: ${results.filter(a=>a.status==='fulfilled').length}, Failed: ${results.filter(a=>a.status==='rejected').length}`)
+      }
+
+
+      resolve('ok')
+      // await db.disconnect() 
+    } catch (error) {
+      logErr(JSON.stringify(error))
+      status.failed++
+      reject(error)
+    }
+    finally {
+      logStd(status.success + " AI Summaries created successfully, " + status.failed + ' errors')
+    }
+  })
+}
+
+
 
 const json_summary_template = {
   summary: "string",
@@ -180,7 +167,7 @@ function cleanResult(result){
   return result.slice(first, last+1)
 }
 
-function summary(_id, largeModel = false) {
+function summary(_id, largeModel = false, source='Calabrio') {
   const messages = [
     // { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. In addition, using a 3 level granularity, you categorize the contact reason of the conversation. Return the summary and contact reason as a json object with the format: {\"summary\": \"example summary\", \"contact_reason\": {\"level1\": \"example level 1\", \"level2\": \"example level 2\", \"level3\": \"example level 3\"}}" },
     { role: "system", content: "Always answer in English. You create summaries from text transcripts of conversations with an electronics retailer customer service. Leave out customer data like address, name, etc in the summary. You also analyse the customer sentiment. Please respond only in JSON format: " + JSON.stringify(json_summary_template)}
@@ -195,8 +182,14 @@ function summary(_id, largeModel = false) {
         try {
             // await db.connect()
             const client = new OpenAIClient(AZURE_OPENAI_ENDPOINT, new AzureKeyCredential(AZURE_OPENAI_API_KEY));
-            const transcript = await Transcript.findById(_id, "meta.language meta.channel chat transcript.text transcript.channel").lean()
-            // for ( let i = 0; i < transcript.transcript.length; i++ ){
+            let transcript
+            if ( source === 'Calabrio') {
+              transcript = await Transcript.findById(_id, "meta.language meta.channel chat transcript.text transcript.channel").lean()
+            }
+            else {
+              transcript = await GenesysTranscript.findById(_id, "meta.language meta.channel chat transcript.text transcript.channel").lean()
+            }
+              // for ( let i = 0; i < transcript.transcript.length; i++ ){
             //     const text = transcript.transcript[i]
             //     if ( text.channel === 'Customer') console.log(color.green(text.channel + ': ') + text.text);
             //     else console.log(color.blue(text.channel + ': ') + text.text);
@@ -246,14 +239,24 @@ function summary(_id, largeModel = false) {
                 const parsed = JSON.parse(cleanResult(result2.choices[0].message.content))
                 const contact_reason = parsed || result2.choices[0].message.content
                 // console.log(contact_reason);
-                await Transcript.findByIdAndUpdate(_id, {
-                  summary: data.summary,
-                  contactReason: contact_reason["contact_reason"],
-                  sentiment: data.sentiment,
-                  hasSummary: true,
-                  hasMetadataPushed: false
-                })
-              
+                if (source === 'Calabrio'){
+                  await Transcript.findByIdAndUpdate(_id, {
+                    summary: data.summary,
+                    contactReason: contact_reason["contact_reason"],
+                    sentiment: data.sentiment,
+                    hasSummary: true,
+                    hasMetadataPushed: false
+                  })                
+                }
+                else {
+                  await GenesysTranscript.findByIdAndUpdate(_id, {
+                    summary: data.summary,
+                    contactReason: contact_reason["contact_reason"],
+                    sentiment: data.sentiment,
+                    hasSummary: true,
+                    hasMetadataPushed: false
+                  })     
+                }
     
                 resolve(result)
             }
@@ -314,4 +317,4 @@ function fixWrongContactReasons(date){
 //   console.error("The sample encountered an error:", err);
 // });
 
-module.exports = { createSummaries, fixWrongContactReasons}
+module.exports = { createSummaries, fixWrongContactReasons, createSummariesGenesys}

@@ -2,6 +2,7 @@ require('dotenv').config()
 
 //Node packages
 const Progress = require('progress')
+const fs = require('fs')
 const {argv} = require('yargs')
 const moment = require('moment')
 
@@ -15,7 +16,7 @@ const convertTranscript = require('./controllers/convertTranscript')
 const { getDefaultContactData, getChatContacts } = require('./controllers/getContacts')
 const authCalabrio = require('./controllers/authCalabrio') 
 const { getTranscriptForContact, getChatTranscript } = require('./controllers/getTranscript')
-const {createSummaries, fixWrongContactReasons} = require('./controllers/getSummary')
+const {createSummaries, fixWrongContactReasons, createSummariesGenesys} = require('./controllers/getSummary')
 const analyseContactReason = require('./controllers/analyseContactReason')
 const { analyseCallTranscriptions } = require('./controllers/analyseCall')
 
@@ -24,6 +25,20 @@ const Transcript = require('./models/Transcript')
 const { cleanUpErrors } = require('./controllers/transcriptMaintenance')
 const writeMetadata = require('./controllers/writeMetadata')
 const { sleepAsync } = require('./controllers/utils')
+const { genesysAuth, authWithToken } = require('./controllers/genesys/authGC')
+const { searchTranscripts } = require('./controllers/genesys/searchTranscripts')
+const { saveInitial, appendTranscript, appendCall, saveOne, runSpeechToTextAnalytics } = require('./controllers/genesys/saveTranscript')
+const { getTranscripts } = require('./controllers/genesys/getTranscripts')
+const createChannel = require('./controllers/genesys/createChannel')
+const { createWebSocket, subscribeToQueues, subscribeToTranscript } = require('./controllers/genesys/handleWS')
+const getActiveQueues = require('./controllers/genesys/getActiveQueues')
+const { log } = require('console')
+const getActiveLanguages = require('./controllers/genesys/getLanguages')
+const { getChatMessagesAndSaveToTranscript } = require('./controllers/genesys/getChatMessages')
+const { getEmailMessageAndSaveToTranscript } = require('./controllers/genesys/getEmailMessages')
+const deleteToken = require('./controllers/genesys/deleteToken.js');
+const getChannels = require('./controllers/genesys/getChannels.js');
+const deleteSubscriptions = require('./controllers/genesys/deleteSubscriptions.js');
 
 //Params
 const startCron = Object.keys(argv).length === 2
@@ -97,6 +112,10 @@ async function run(){
             logStd(`Fixing errors for ${date}`)
             await fixWrongContactReasons(date)
         }
+
+        if ( argv.genesys || argv.g ){
+            runGenesys()
+        }
         
 
         if ( startCron ){
@@ -122,7 +141,7 @@ async function run(){
                 // logSys(`Waiting for cron job "${cronNightlySchedule.name}" @${Number(cronNightlySchedule.hour)<10 ? 0: ''}${cronNightlySchedule.hour}:${Number(cronNightlySchedule.minute)<10?0:''}${cronNightlySchedule.minute} ${cronNightlySchedule.weekDay === '*' ? 'every day': cronNightlySchedule.weekDay}`)
             })
         }
-        else await disconnect(true)
+        // else await disconnect(true)
 
     } catch (error) {
         logErr(error.message)
@@ -244,8 +263,157 @@ function runFetchContacts(sessionId, date, yesterday=false){
     })
 
 }
+let authToken
+async function runGenesys(){
+    try {
+        if ( authToken ) { //Genesys clean-up
+            try {
+                logSys('Cleaning up Genesys Cloud authentication')
+                const platformClient = await authWithToken(authToken)
+                const channels = await getChannels(platformClient)
+                
+                // console.log({channels: channels.entities})
+                for ( let i = 0; i < channels.entities.length; i++){
+                    logSys('Deleting subscriptions ' + channels.entities[i].id)
+                    await deleteSubscriptions(platformClient, channels.entities[i].id)
+                }
+                await deleteToken(platformClient)
+                logSys('Deleted token ', authToken)
+                authToken = null
+            } catch (error) {
+                logErr('Error in Genesys clean-up: ' + error.message)
+            }
+        }
+    
+        const platformClient = await genesysAuth();
+        authToken = platformClient.ApiClient.authData.accessToken
+        logStd('Authenticating with Genesys')
+        const date = argv.date || argv.d || moment().format('YYYY-MM-DD')
+        logStd('Fetching transcripts for ' + date)
+        const languages = await getActiveLanguages()
+        // console.log(languages);
+        
+        const data = await searchTranscripts(platformClient, date)
+        // console.log(data);
+        console.log( await saveInitial(data, date))
+        const transcripts = await getTranscripts(platformClient)
+        console.log(transcripts)
+        await createSummariesGenesys()
+        logStd('Genesys data initialized')
+    
+        const conversationChannel = await createChannel(platformClient)
+        const conversationWs = createWebSocket(conversationChannel.connectUri) 
+        const transcriptionChannel = await createChannel(platformClient)
+        const transcriptionWs = createWebSocket(transcriptionChannel.connectUri)
+        const transcriptsubscriptions = []
+        
+        conversationWs.on('message', async ms=> {
+            const msg = JSON.parse(ms.toString())
+            const {topicName, eventBody} = msg
+            // log(topicName)
+            // if (eventBody?.message !== 'WebSocket Heartbeat')
+            //     fs.writeFileSync('./data/' + moment().unix() + '.json', JSON.stringify(msg), 'utf8')
+            if ( eventBody?.message === 'pong'){ //When recieving a pong, subscribe to queues
+                subscribeToQueues(conversationWs, await getActiveQueues())
+            }
+            else if ( topicName?.includes('v2.routing.queues.') && topicName?.includes('.conversations')){
+                const { id, participants } = eventBody
+                const customer = participants.filter(p => p.purpose === 'customer')[0]
+                const agent = participants.filter(p=>p.purpose === 'agent')[0]
+                const acd = participants.filter(p=>p.purpose === 'acd')[0]
+                if ( !transcriptsubscriptions.includes(id )){
+                    let mediaType = 'na'
+                    if (acd){
+                        if (acd.emails) mediaType = 'email'
+                        if (acd.calls) mediaType = 'voice'
+                        if (acd.callbacks) mediaType = 'callback'
+                        if (acd.chats) mediaType = 'chat'
+                        if (acd.messages) mediaType = 'chat'
+                        log(mediaType + ' ' + id + ' - ' + acd.name + ' - ' + agent?.name)
+                    }
+                    if ( agent && acd  ) {
+                        log('Save/Subscribing: ' + id)
+                        transcriptsubscriptions.push(id)
+                        const language = languages.filter(a=>a._id === acd?.conversationRoutingData?.language?.id)[0]?.name || 'unknown'
+                        if ( ['voice'].includes(mediaType) && acd?.calls?.recordingState === 'active') subscribeToTranscript(transcriptionWs, id)   
+                            await saveOne({conversationId: id, communicationId: 'awaiting', channel: mediaType, queueId: acd.queueId, language}, moment().format('YYYY-MM-DD'))
+                        if ( mediaType === 'chat' && customer?.endTime){
+                            const messages = [...customer.messages.map(a=>a.messageId), ...agent.messages.map(a=>a.messageId)]
+                            await getChatMessagesAndSaveToTranscript(platformClient, id, messages)
+                        }
+                        if ( mediaType === 'email' && customer?.endTime){
+                            await getEmailMessageAndSaveToTranscript(platformClient, id)
+                        }
+                    }
+                }
+                else {
+                    if ( customer && acd && agent && ( acd.calls || acd.callbacks) && customer.endTime ){
+                        const stt = await runSpeechToTextAnalytics(id, platformClient)
+                        console.log(stt);
+                        
+
+                    }
+                }
+            }
+            else if (topicName && eventBody && topicName !== 'channel.metadata') {
+                console.log({channel: 'conversation', topicName, eventBody});
+                
+            }
+            else if ( topicName !== 'channel.metadata' && msg?.message === 'Successfully subscribed to topic(s).' )
+                logStd('Subscribed to conversations in ' + msg.topics.length + ' queues')
+            else if ( topicName !== 'channel.metadata' )
+                console.log({channel: 'conversation', msg});
+            
+            
+        })
+        
+        transcriptionWs.on('message', async msg=> {
+            const {topicName, eventBody} = JSON.parse(msg.toString())
+            
+            if ( topicName?.includes("v2.conversations.") && topicName?.includes(".transcription") ){
+                const {communicationId, conversationId, status, transcripts, eventTime, sessionStartTimeMs, transcriptionStartTimeMs} = eventBody
+                console.log({communicationId, conversationId, status: status.status, eventTime, sessionStartTimeMs, transcriptionStartTimeMs})
+                // console.log({type: 'last', transcript: transcripts[transcripts.length-1].alternatives[0].transcript})
+                const ts = []
+                if (transcripts){
+                    for ( let i = 0; i < transcripts.length; i++ ){
+                        const {alternatives, channel, dialect} = transcripts[i]
+                        const {transcript, confidence, words, offsetMs, durationMs} = alternatives[0]
+                        ts.push({channel, dialect, transcript, confidence, words, offsetMs, durationMs})
+                        console.log({
+                            channel, dialect, transcript, confidence, wordCount: words.length, offsetMs, durationMs
+                        })
+                    }
+                    await appendTranscript(conversationId, ts)
+                }
+                try {
+                    await appendCall({conversationId, communicationId, status: status.status}, platformClient)
+                } catch (error) {
+                    logErr(error)
+                }
+            }
+            else if (topicName && eventBody && topicName !== 'channel.metadata') {
+                console.log({channel: 'transcription', topicName, eventBody});
+                
+            }
+            else  if ( topicName !== 'channel.metadata' ) {
+                console.log({channel: 'transcription', data: JSON.parse(msg.toString())});
+                
+            }
+            // if ( data?.eventBody?.message === 'pong'){ //When recieving a pong, subscribe to queues
+            //     subscribeToQueues(ws, await getActiveQueues())
+            // }
+    
+        })
+
+    } catch (error) {
+        logErr
+    }
+        
+
+}
 
 
-run()
+run().catch(e=>logErr(e.message))
 // fs.writeFileSync('./output/data.json', JSON.stringify(outputData), 'utf8')
 // log(outputData)

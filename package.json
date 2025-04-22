@@ -18,6 +18,8 @@
     "mongoose": "^8.3.2",
     "node-cron": "^3.0.3",
     "progress": "^2.0.3",
+    "purecloud-platform-client-v2": "^212.1.0",
+    "ws": "^8.18.0",
     "yargs": "^17.7.2"
   }
 }
